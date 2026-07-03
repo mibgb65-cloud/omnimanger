@@ -11,5 +11,4 @@ not_found_handling = "single-page-application"
 
 [[kv_namespaces]]
 binding = "VAULT"
-# Replace this with the id returned by: wrangler kv namespace create VAULT
-id = "00000000000000000000000000000000"
+id = "b86d5782e8344bfe8e1a06076de34cb5"
