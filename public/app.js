@@ -113,7 +113,8 @@ function setTheme(theme, animate) {
   document.documentElement.dataset.theme = theme;
   document.body.dataset.theme = theme;
   localStorage.setItem(THEME_KEY, theme);
-  els.themeToggleButton.textContent = theme === "dark" ? "浅色" : "深色";
+  setInlineLabel(els.themeToggleButton, theme === "dark" ? "浅色" : "深色");
+  setInlineIcon(els.themeToggleButton, theme === "dark" ? "icon-sun" : "icon-moon");
 }
 
 async function authenticate(mode) {
@@ -244,8 +245,9 @@ function normalizeEntry(entry) {
 function showVault() {
   els.lockedView.classList.add("hidden");
   els.vaultView.classList.remove("hidden");
-  els.lockStatus.textContent = "Unlocked";
-  els.syncStatus.textContent = state.user.email;
+  setInlineLabel(els.lockStatus, "Unlocked");
+  setInlineIcon(els.lockStatus, "icon-unlock");
+  setInlineLabel(els.syncStatus, state.user.email);
   els.syncStatus.classList.remove("neutral");
 
   if (state.user.isAdmin) {
@@ -285,8 +287,9 @@ function lockVault() {
   els.entryList.textContent = "";
   els.lockedView.classList.remove("hidden");
   els.vaultView.classList.add("hidden");
-  els.lockStatus.textContent = "Locked";
-  els.syncStatus.textContent = "Signed out";
+  setInlineLabel(els.lockStatus, "Locked");
+  setInlineIcon(els.lockStatus, "icon-lock");
+  setInlineLabel(els.syncStatus, "Signed out");
   els.syncStatus.classList.add("neutral");
   els.saveStatus.textContent = "未解锁";
   els.totpCode.textContent = "------";
@@ -332,12 +335,24 @@ function renderEntries() {
     return haystack.includes(query);
   });
 
+  if (!entries.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.innerHTML = `
+      <svg class="icon"><use href="#icon-search"></use></svg>
+      <strong>${query ? "没有匹配账号" : "还没有账号"}</strong>
+      <span>${query ? "换个关键词试试" : "点击右上角新增账号"}</span>
+    `;
+    els.entryList.append(empty);
+    return;
+  }
+
   for (const entry of entries) {
     const item = els.entryTemplate.content.firstElementChild.cloneNode(true);
     item.dataset.id = entry.id;
     item.classList.toggle("active", entry.id === state.selectedId);
     item.querySelector("strong").textContent = entry.name || "未命名账号";
-    item.querySelector("span").textContent = entry.login || entry.tags || "无登录名";
+    item.querySelector(".entry-meta").textContent = entry.login || entry.tags || "无登录名";
     item.addEventListener("click", () => selectEntry(entry.id));
     els.entryList.append(item);
   }
@@ -435,13 +450,15 @@ function deleteSelectedEntry() {
 function togglePassword() {
   state.passwordVisible = !state.passwordVisible;
   els.entryPassword.type = state.passwordVisible ? "text" : "password";
-  els.togglePasswordButton.textContent = state.passwordVisible ? "隐藏" : "显示";
+  setInlineLabel(els.togglePasswordButton, state.passwordVisible ? "隐藏" : "显示");
+  setInlineIcon(els.togglePasswordButton, state.passwordVisible ? "icon-eye-off" : "icon-eye");
 }
 
 function toggleTotp() {
   state.totpVisible = !state.totpVisible;
   els.entryTotpSecret.type = state.totpVisible ? "text" : "password";
-  els.toggleTotpButton.textContent = state.totpVisible ? "隐藏" : "显示";
+  setInlineLabel(els.toggleTotpButton, state.totpVisible ? "隐藏" : "显示");
+  setInlineIcon(els.toggleTotpButton, state.totpVisible ? "icon-eye-off" : "icon-eye");
 }
 
 function markDirty() {
@@ -743,4 +760,18 @@ function normalizeEmail(email) {
 
 function setUnlockMessage(message) {
   els.unlockMessage.textContent = message;
+}
+
+function setInlineLabel(element, text) {
+  const label = element.querySelector("span:not(.sr-only)");
+  if (label) {
+    label.textContent = text;
+    return;
+  }
+  element.textContent = text;
+}
+
+function setInlineIcon(element, iconId) {
+  const use = element.querySelector("use");
+  if (use) use.setAttribute("href", `#${iconId}`);
 }
