@@ -1,0 +1,13 @@
+{
+  "name": "account-secret-vault",
+  "version": "0.1.0",
+  "description": "A client-side encrypted account secret vault for Cloudflare Workers and KV.",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "check": "node --check src/index.js && node --check public/app.js",
+    "dev": "wrangler dev --local --port 8787",
+    "deploy": "wrangler deploy"
+  }
+}

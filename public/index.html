@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Account Secret Vault</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Zero-knowledge vault</p>
+          <h1>账号保险箱</h1>
+        </div>
+        <div class="status-strip">
+          <span id="lockStatus" class="status-pill">Locked</span>
+          <span id="syncStatus" class="status-pill neutral">Local</span>
+        </div>
+      </header>
+
+      <section id="lockedView" class="unlock-grid">
+        <form id="unlockForm" class="panel unlock-panel" autocomplete="off">
+          <div class="panel-heading">
+            <h2>解锁</h2>
+            <span class="muted">Cloudflare KV stores ciphertext only</span>
+          </div>
+
+          <label>
+            <span>保险箱 ID</span>
+            <div class="secret-control">
+              <input id="vaultId" name="vaultId" autocomplete="username" required minlength="6" maxlength="80" pattern="[A-Za-z0-9][A-Za-z0-9_-]{5,79}">
+              <button id="generateVaultIdButton" type="button">生成</button>
+            </div>
+          </label>
+
+          <label>
+            <span>主密码</span>
+            <input id="masterPassword" name="masterPassword" type="password" autocomplete="new-password" required minlength="10">
+          </label>
+
+          <label>
+            <span>同步令牌</span>
+            <input id="syncToken" name="syncToken" type="password" autocomplete="off">
+          </label>
+
+          <label class="check-row">
+            <input id="rememberToken" type="checkbox">
+            <span>仅在此浏览器记住同步令牌</span>
+          </label>
+
+          <div class="button-row">
+            <button type="submit" class="primary">解锁或创建</button>
+            <button id="localOnlyButton" type="button">本地模式</button>
+          </div>
+
+          <p id="unlockMessage" class="message" role="status"></p>
+        </form>
+
+        <aside class="panel facts-panel">
+          <div class="fact">
+            <strong>主密码</strong>
+            <span>不上传，不保存，丢失后无法恢复。</span>
+          </div>
+          <div class="fact">
+            <strong>保险箱 ID</strong>
+            <span>用于区分不同人的密文记录，可以放在分享链接里。</span>
+          </div>
+          <div class="fact">
+            <strong>同步令牌</strong>
+            <span>每个保险箱独立设置，只用于读写自己的密文。</span>
+          </div>
+          <div class="fact">
+            <strong>保险箱</strong>
+            <span>邮箱、密码、2FA 种子、恢复码都在浏览器加密。</span>
+          </div>
+        </aside>
+      </section>
+
+      <section id="vaultView" class="vault-grid hidden">
+        <aside class="list-panel panel">
+          <div class="toolbar">
+            <label class="search">
+              <span>搜索</span>
+              <input id="searchInput" type="search" autocomplete="off">
+            </label>
+            <button id="addEntryButton" type="button" class="icon-button" aria-label="新增账号">+</button>
+          </div>
+          <div id="entryList" class="entry-list" aria-label="账号列表"></div>
+        </aside>
+
+        <section class="detail-panel panel">
+          <form id="entryForm" autocomplete="off">
+            <div class="detail-head">
+              <label>
+                <span>名称</span>
+                <input id="entryName" name="name" required placeholder="Google main">
+              </label>
+              <button id="deleteEntryButton" type="button" class="danger">删除</button>
+            </div>
+
+            <div class="field-grid">
+              <label>
+                <span>登录邮箱</span>
+                <input id="entryLogin" name="login" inputmode="email" autocomplete="off">
+              </label>
+
+              <label>
+                <span>备用邮箱</span>
+                <input id="entryBackupEmail" name="backupEmail" inputmode="email" autocomplete="off">
+              </label>
+
+              <label>
+                <span>备用手机</span>
+                <input id="entryBackupPhone" name="backupPhone" inputmode="tel" autocomplete="off">
+              </label>
+
+              <label>
+                <span>标签</span>
+                <input id="entryTags" name="tags" autocomplete="off" placeholder="work, personal">
+              </label>
+            </div>
+
+            <label class="secret-row">
+              <span>密码</span>
+              <div class="secret-control">
+                <input id="entryPassword" name="password" type="password" autocomplete="new-password">
+                <button id="togglePasswordButton" type="button" aria-label="显示或隐藏密码">显示</button>
+                <button data-copy="entryPassword" type="button">复制</button>
+              </div>
+            </label>
+
+            <label class="secret-row">
+              <span>2FA TOTP 种子</span>
+              <div class="secret-control">
+                <input id="entryTotpSecret" name="totpSecret" type="password" autocomplete="off" spellcheck="false">
+                <button id="toggleTotpButton" type="button" aria-label="显示或隐藏 2FA 种子">显示</button>
+                <button data-copy="entryTotpSecret" type="button">复制</button>
+              </div>
+            </label>
+
+            <div class="totp-panel">
+              <span class="muted">当前验证码</span>
+              <strong id="totpCode">------</strong>
+              <div class="timer">
+                <span id="totpTimerBar"></span>
+              </div>
+            </div>
+
+            <label>
+              <span>恢复码</span>
+              <textarea id="entryRecoveryCodes" name="recoveryCodes" rows="5" spellcheck="false"></textarea>
+            </label>
+
+            <label>
+              <span>备注</span>
+              <textarea id="entryNotes" name="notes" rows="6"></textarea>
+            </label>
+          </form>
+
+          <div class="bottom-bar">
+            <span id="saveStatus" class="muted">未解锁</span>
+            <div class="button-row">
+              <button id="pullButton" type="button">拉取</button>
+              <button id="saveButton" type="button" class="primary">保存</button>
+              <button id="lockButton" type="button">锁定</button>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <template id="entryTemplate">
+      <button class="entry-item" type="button">
+        <strong></strong>
+        <span></span>
+      </button>
+    </template>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>
