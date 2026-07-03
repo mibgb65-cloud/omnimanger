@@ -6,7 +6,7 @@
 
 ## 安全模型
 
-- 登录密码的原文不发送到 Worker。浏览器会先派生登录用的 `authSecret`，Worker 再对它做 PBKDF2 后保存。
+- 登录密码的原文不发送到 Worker。浏览器会先用 PBKDF2 派生登录用的 `authSecret`，Worker 再保存 salted SHA-256 校验值。
 - 同一个登录密码也在浏览器内用于派生 AES-GCM 密钥，解密保险箱。
 - KV 里只有密文；没有主密码就无法解密。
 - Worker 保存用户记录、session 签名数据和保险箱密文。

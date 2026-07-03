@@ -1,6 +1,5 @@
 const MAX_VAULT_BYTES = 1024 * 1024;
 const MAX_AUTH_BYTES = 4096;
-const AUTH_HASH_ITERATIONS = 210000;
 const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const REGISTRATION_SETTING_KEY = "settings:registration-open";
@@ -39,7 +38,11 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname.startsWith("/api/")) {
-      return handleApi(request, env, url);
+      try {
+        return await handleApi(request, env, url);
+      } catch {
+        return json({ error: "Internal server error." }, 500);
+      }
     }
 
     const response = await env.ASSETS.fetch(request);
@@ -388,18 +391,11 @@ async function signSessionPayload(payloadValue, secret) {
 }
 
 async function hashAuthSecret(authSecret, salt) {
-  const material = await crypto.subtle.importKey("raw", authSecret, "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits(
-    {
-      name: "PBKDF2",
-      salt,
-      iterations: AUTH_HASH_ITERATIONS,
-      hash: "SHA-256",
-    },
-    material,
-    256,
-  );
-  return bytesToBase64(new Uint8Array(bits));
+  const input = new Uint8Array(salt.length + authSecret.length);
+  input.set(salt, 0);
+  input.set(authSecret, salt.length);
+  const digest = await crypto.subtle.digest("SHA-256", input);
+  return bytesToBase64(new Uint8Array(digest));
 }
 
 function decodeAuthSecret(value) {

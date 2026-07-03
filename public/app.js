@@ -2,6 +2,7 @@ const STORAGE_PREFIX = "account-secret-vault.envelope.";
 const LAST_EMAIL_KEY = "account-secret-vault.last-email";
 const THEME_KEY = "account-secret-vault.theme";
 const KDF_ITERATIONS = 310000;
+const AUTH_KDF_ITERATIONS = 120000;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
@@ -157,11 +158,24 @@ async function authenticate(mode) {
 }
 
 async function makeAuthSecret(email, password) {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    encoder.encode(`account-secret-vault auth v1\n${email}\n${password}`),
+  const material = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(password),
+    "PBKDF2",
+    false,
+    ["deriveBits"],
   );
-  return bytesToBase64(new Uint8Array(digest));
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt: encoder.encode(`account-secret-vault auth v2\n${email}`),
+      iterations: AUTH_KDF_ITERATIONS,
+      hash: "SHA-256",
+    },
+    material,
+    256,
+  );
+  return bytesToBase64(new Uint8Array(bits));
 }
 
 async function loadBestEnvelope() {
