@@ -15,6 +15,9 @@ const state = {
   selectedId: null,
   saveTimer: null,
   saving: false,
+  pulling: false,
+  authenticating: false,
+  dirty: false,
   passwordVisible: false,
   totpVisible: false,
 };
@@ -63,6 +66,7 @@ const els = {
 init();
 
 function init() {
+  initDecorativeIcons();
   initTheme();
   els.loginEmail.value = localStorage.getItem(LAST_EMAIL_KEY) || "";
 
@@ -91,6 +95,12 @@ function init() {
 
   setInterval(updateTotpDisplay, 1000);
   setInterval(lockIfHiddenTooLong, 30_000);
+
+  window.addEventListener("beforeunload", (event) => {
+    if (!state.dirty && !state.saving) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
 }
 
 function initTheme() {
@@ -118,6 +128,8 @@ function setTheme(theme, animate) {
 }
 
 async function authenticate(mode) {
+  if (state.authenticating) return;
+
   const email = normalizeEmail(els.loginEmail.value);
   const password = els.loginPassword.value;
 
@@ -131,7 +143,9 @@ async function authenticate(mode) {
     return;
   }
 
-  setUnlockMessage(mode === "register" ? "正在注册..." : "正在登录...");
+  state.authenticating = true;
+  setAuthButtonsDisabled(true);
+  setUnlockMessage(mode === "register" ? "正在注册…" : "正在登录…");
 
   try {
     const authSecret = await makeAuthSecret(email, password);
@@ -155,6 +169,9 @@ async function authenticate(mode) {
   } catch (error) {
     state.key = null;
     setUnlockMessage(error.message || "无法登录。");
+  } finally {
+    state.authenticating = false;
+    setAuthButtonsDisabled(false);
   }
 }
 
@@ -279,10 +296,12 @@ function lockVault() {
   state.key = null;
   state.salt = null;
   state.selectedId = null;
+  state.dirty = false;
   state.passwordVisible = false;
   state.totpVisible = false;
 
   els.entryForm.reset();
+  resetSecretVisibility();
   els.adminPanel.classList.add("hidden");
   els.entryList.textContent = "";
   els.lockedView.classList.remove("hidden");
@@ -339,7 +358,7 @@ function renderEntries() {
     const empty = document.createElement("div");
     empty.className = "empty-state";
     empty.innerHTML = `
-      <svg class="icon"><use href="#icon-search"></use></svg>
+      <svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-search"></use></svg>
       <strong>${query ? "没有匹配账号" : "还没有账号"}</strong>
       <span>${query ? "换个关键词试试" : "点击右上角新增账号"}</span>
     `;
@@ -353,6 +372,7 @@ function renderEntries() {
     item.classList.toggle("active", entry.id === state.selectedId);
     item.querySelector("strong").textContent = entry.name || "未命名账号";
     item.querySelector(".entry-meta").textContent = entry.login || entry.tags || "无登录名";
+    initDecorativeIcons(item);
     item.addEventListener("click", () => selectEntry(entry.id));
     els.entryList.append(item);
   }
@@ -362,6 +382,7 @@ function selectEntry(id) {
   state.selectedId = id;
   const entry = getSelectedEntry();
   els.entryForm.reset();
+  resetSecretVisibility();
   setFormDisabled(!entry);
 
   if (entry) {
@@ -463,6 +484,7 @@ function toggleTotp() {
 
 function markDirty() {
   if (!state.vault) return;
+  state.dirty = true;
   els.saveStatus.textContent = "未保存";
   clearTimeout(state.saveTimer);
   state.saveTimer = setTimeout(() => saveVaultNow(false), 700);
@@ -471,27 +493,36 @@ function markDirty() {
 async function saveVaultNow(manual) {
   if (!state.user || !state.vault || !state.key || state.saving) return;
 
+  clearTimeout(state.saveTimer);
+  state.saveTimer = null;
   state.saving = true;
-  els.saveStatus.textContent = "正在保存...";
+  updateBusyControls();
+  els.saveStatus.textContent = "正在保存…";
   try {
     state.vault.updatedAt = new Date().toISOString();
     const envelope = await encryptVault(state.vault, state.key);
     localStorage.setItem(getStorageKey(state.user.id), JSON.stringify(envelope));
     await putRemoteEnvelope(envelope);
+    state.dirty = false;
     els.saveStatus.textContent = "已同步到 Cloudflare";
   } catch (error) {
     els.saveStatus.textContent = error.message || "保存失败";
     if (manual) alert(els.saveStatus.textContent);
   } finally {
     state.saving = false;
+    updateBusyControls();
   }
 }
 
 async function pullRemoteVault() {
   if (!state.user || !state.key) return;
+  if (state.pulling) return;
+  if (state.dirty && !confirm("当前有未保存修改，继续拉取会覆盖本地内容。继续？")) return;
 
   try {
-    els.saveStatus.textContent = "正在拉取...";
+    state.pulling = true;
+    updateBusyControls();
+    els.saveStatus.textContent = "正在拉取…";
     const envelope = await fetchRemoteEnvelope();
     if (!envelope) {
       els.saveStatus.textContent = "远端没有保险箱";
@@ -504,12 +535,16 @@ async function pullRemoteVault() {
     }
 
     state.vault = normalizeVault(await decryptVault(envelope, state.key));
+    state.dirty = false;
     localStorage.setItem(getStorageKey(state.user.id), JSON.stringify(envelope));
     renderEntries();
     selectEntry(state.vault.entries[0]?.id || null);
     els.saveStatus.textContent = "已拉取远端密文";
   } catch (error) {
     els.saveStatus.textContent = error.message || "拉取失败";
+  } finally {
+    state.pulling = false;
+    updateBusyControls();
   }
 }
 
@@ -742,7 +777,10 @@ function base32ToBytes(input) {
 
 async function copyInputValue(inputId) {
   const input = $(inputId);
-  if (!input?.value) return;
+  if (!input?.value) {
+    els.saveStatus.textContent = "没有可复制的内容";
+    return;
+  }
 
   try {
     await navigator.clipboard.writeText(input.value);
@@ -774,4 +812,34 @@ function setInlineLabel(element, text) {
 function setInlineIcon(element, iconId) {
   const use = element.querySelector("use");
   if (use) use.setAttribute("href", `#${iconId}`);
+}
+
+function initDecorativeIcons(root = document) {
+  for (const icon of root.querySelectorAll(".icon")) {
+    icon.setAttribute("aria-hidden", "true");
+    icon.setAttribute("focusable", "false");
+  }
+}
+
+function setAuthButtonsDisabled(disabled) {
+  for (const button of els.unlockForm.querySelectorAll("button")) {
+    button.disabled = disabled;
+  }
+}
+
+function updateBusyControls() {
+  els.saveButton.disabled = state.saving || state.pulling;
+  els.pullButton.disabled = state.saving || state.pulling;
+  els.lockButton.disabled = state.saving;
+}
+
+function resetSecretVisibility() {
+  state.passwordVisible = false;
+  state.totpVisible = false;
+  els.entryPassword.type = "password";
+  els.entryTotpSecret.type = "password";
+  setInlineLabel(els.togglePasswordButton, "显示");
+  setInlineIcon(els.togglePasswordButton, "icon-eye");
+  setInlineLabel(els.toggleTotpButton, "显示");
+  setInlineIcon(els.toggleTotpButton, "icon-eye");
 }

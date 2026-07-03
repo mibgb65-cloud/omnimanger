@@ -382,6 +382,12 @@ h2 {
   height: 14px;
 }
 
+.status-pill span:not(.sr-only) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .status-pill.neutral {
   border-color: var(--color-border-subtle);
   background: var(--color-surface-soft);
@@ -435,6 +441,18 @@ html[data-theme="dark"] .theme-toggle {
 html[data-theme="dark"] .theme-toggle:hover {
   background: #424242;
   color: #f4f4f4;
+}
+
+html[data-theme="dark"] .add-button {
+  border-color: var(--color-accent);
+  background-color: var(--color-accent);
+  color: #ffffff;
+}
+
+html[data-theme="dark"] .add-button:hover {
+  border-color: var(--color-accent-hover);
+  background-color: var(--color-accent-hover);
+  color: #ffffff;
 }
 
 .unlock-grid {
@@ -932,6 +950,10 @@ html[data-theme="dark"] .theme-toggle:hover {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .unlock-panel .button-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 520px) {
@@ -945,5 +967,9 @@ html[data-theme="dark"] .theme-toggle:hover {
 
   button {
     width: 100%;
+  }
+
+  .theme-toggle {
+    width: auto;
   }
 }
