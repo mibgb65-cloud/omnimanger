@@ -1,5 +1,6 @@
 const STORAGE_PREFIX = "account-secret-vault.envelope.";
 const LAST_EMAIL_KEY = "account-secret-vault.last-email";
+const THEME_KEY = "account-secret-vault.theme";
 const KDF_ITERATIONS = 310000;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -26,6 +27,7 @@ const els = {
   loginEmail: $("loginEmail"),
   loginPassword: $("loginPassword"),
   registerButton: $("registerButton"),
+  themeToggleButton: $("themeToggleButton"),
   unlockMessage: $("unlockMessage"),
   lockStatus: $("lockStatus"),
   syncStatus: $("syncStatus"),
@@ -57,8 +59,10 @@ const els = {
 init();
 
 function init() {
+  initTheme();
   els.loginEmail.value = localStorage.getItem(LAST_EMAIL_KEY) || "";
 
+  els.themeToggleButton.addEventListener("click", toggleTheme);
   els.unlockForm.addEventListener("submit", (event) => {
     event.preventDefault();
     authenticate("login");
@@ -82,6 +86,29 @@ function init() {
 
   setInterval(updateTotpDisplay, 1000);
   setInterval(lockIfHiddenTooLong, 30_000);
+}
+
+function initTheme() {
+  const savedTheme = localStorage.getItem(THEME_KEY);
+  const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  setTheme(savedTheme || (systemDark ? "dark" : "light"), false);
+}
+
+function toggleTheme() {
+  const nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  setTheme(nextTheme, true);
+}
+
+function setTheme(theme, animate) {
+  if (animate) {
+    document.documentElement.classList.add("theme-transition");
+    window.setTimeout(() => document.documentElement.classList.remove("theme-transition"), 220);
+  }
+
+  document.documentElement.dataset.theme = theme;
+  document.body.dataset.theme = theme;
+  localStorage.setItem(THEME_KEY, theme);
+  els.themeToggleButton.textContent = theme === "dark" ? "浅色" : "深色";
 }
 
 async function authenticate(mode) {
