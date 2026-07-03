@@ -1,1 +1,2 @@
 SESSION_SECRET=replace-with-a-long-random-session-secret
+ADMIN_EMAIL=admin@example.com

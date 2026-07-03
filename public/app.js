@@ -28,6 +28,9 @@ const els = {
   loginPassword: $("loginPassword"),
   registerButton: $("registerButton"),
   themeToggleButton: $("themeToggleButton"),
+  adminPanel: $("adminPanel"),
+  adminSettingsStatus: $("adminSettingsStatus"),
+  registrationOpenToggle: $("registrationOpenToggle"),
   unlockMessage: $("unlockMessage"),
   lockStatus: $("lockStatus"),
   syncStatus: $("syncStatus"),
@@ -63,6 +66,7 @@ function init() {
   els.loginEmail.value = localStorage.getItem(LAST_EMAIL_KEY) || "";
 
   els.themeToggleButton.addEventListener("click", toggleTheme);
+  els.registrationOpenToggle.addEventListener("change", saveAdminSettings);
   els.unlockForm.addEventListener("submit", (event) => {
     event.preventDefault();
     authenticate("login");
@@ -229,6 +233,13 @@ function showVault() {
   els.lockStatus.textContent = "Unlocked";
   els.syncStatus.textContent = state.user.email;
   els.syncStatus.classList.remove("neutral");
+
+  if (state.user.isAdmin) {
+    els.adminPanel.classList.remove("hidden");
+    loadAdminSettings();
+  } else {
+    els.adminPanel.classList.add("hidden");
+  }
 }
 
 async function logoutVault() {
@@ -256,6 +267,7 @@ function lockVault() {
   state.totpVisible = false;
 
   els.entryForm.reset();
+  els.adminPanel.classList.add("hidden");
   els.entryList.textContent = "";
   els.lockedView.classList.remove("hidden");
   els.vaultView.classList.add("hidden");
@@ -503,6 +515,42 @@ async function postJson(url, body) {
   const data = await readJsonResponse(response);
   if (!response.ok) throw new Error(data.error || "请求失败。");
   return data;
+}
+
+async function loadAdminSettings() {
+  try {
+    els.adminSettingsStatus.textContent = "正在读取注册设置...";
+    const response = await fetch("/api/admin/settings", { credentials: "same-origin" });
+    const data = await readJsonResponse(response);
+    if (!response.ok) throw new Error(data.error || "无法读取管理员设置。");
+
+    els.registrationOpenToggle.checked = Boolean(data.registrationOpen);
+    els.adminSettingsStatus.textContent = data.registrationOpen ? "当前允许新用户注册" : "当前禁止新用户注册";
+  } catch (error) {
+    els.adminSettingsStatus.textContent = error.message || "管理员设置读取失败";
+  }
+}
+
+async function saveAdminSettings() {
+  try {
+    els.adminSettingsStatus.textContent = "正在保存注册设置...";
+    const response = await fetch("/api/admin/settings", {
+      method: "PUT",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ registrationOpen: els.registrationOpenToggle.checked }),
+    });
+    const data = await readJsonResponse(response);
+    if (!response.ok) throw new Error(data.error || "无法保存管理员设置。");
+
+    els.registrationOpenToggle.checked = Boolean(data.registrationOpen);
+    els.adminSettingsStatus.textContent = data.registrationOpen ? "当前允许新用户注册" : "当前禁止新用户注册";
+  } catch (error) {
+    els.adminSettingsStatus.textContent = error.message || "管理员设置保存失败";
+    els.registrationOpenToggle.checked = !els.registrationOpenToggle.checked;
+  }
 }
 
 async function readJsonResponse(response) {

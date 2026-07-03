@@ -508,7 +508,43 @@ html[data-theme="dark"] .theme-toggle:hover {
 
 .detail-panel {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.admin-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-soft);
+  padding: 14px 18px;
+}
+
+.admin-panel strong,
+.admin-panel span {
+  display: block;
+}
+
+.admin-panel strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.switch-row {
+  display: flex;
+  grid-template-columns: none;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.switch-row input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  accent-color: var(--color-accent);
 }
 
 #entryForm {
@@ -636,9 +672,19 @@ html[data-theme="dark"] .theme-toggle:hover {
   .field-grid,
   .detail-head,
   .secret-control,
+  .admin-panel,
   .totp-panel,
   .bottom-bar {
     grid-template-columns: 1fr;
+  }
+
+  .admin-panel {
+    align-items: stretch;
+    display: grid;
+  }
+
+  .switch-row {
+    justify-content: space-between;
   }
 
   .bottom-bar {

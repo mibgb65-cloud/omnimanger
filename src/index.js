@@ -3,6 +3,16 @@ const MAX_AUTH_BYTES = 4096;
 const AUTH_HASH_ITERATIONS = 210000;
 const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const REGISTRATION_SETTING_KEY = "settings:registration-open";
+const RATE_LIMITS = {
+  registerIp: { limit: 5, windowSeconds: 60 * 60 },
+  registerEmail: { limit: 3, windowSeconds: 60 * 60 },
+  loginIp: { limit: 30, windowSeconds: 15 * 60 },
+  loginEmail: { limit: 10, windowSeconds: 15 * 60 },
+  vaultRead: { limit: 120, windowSeconds: 60 },
+  vaultWrite: { limit: 60, windowSeconds: 60 },
+  adminSettings: { limit: 20, windowSeconds: 60 },
+};
 
 const SECURITY_HEADERS = {
   "Cache-Control": "no-store",
@@ -71,18 +81,54 @@ async function handleApi(request, env, url) {
 
   if (url.pathname === "/api/auth/me" && request.method === "GET") {
     const user = await getSessionUser(request, env);
-    return json({ user: user ? publicUser(user) : null });
+    return json({ user: user ? publicUser(user, env) : null });
+  }
+
+  if (url.pathname === "/api/admin/settings" && request.method === "GET") {
+    const user = await requireAdminUser(request, env);
+    if (user instanceof Response) return user;
+    return getAdminSettings(env);
+  }
+
+  if (url.pathname === "/api/admin/settings" && request.method === "PUT") {
+    const user = await requireAdminUser(request, env);
+    if (user instanceof Response) return user;
+    const limited = await enforceRateLimit(
+      env,
+      "admin-settings",
+      user.id,
+      RATE_LIMITS.adminSettings.limit,
+      RATE_LIMITS.adminSettings.windowSeconds,
+    );
+    if (limited) return limited;
+    return putAdminSettings(request, env);
   }
 
   if (url.pathname === "/api/vault" && request.method === "GET") {
     const user = await requireSessionUser(request, env);
     if (user instanceof Response) return user;
+    const limited = await enforceRateLimit(
+      env,
+      "vault-read",
+      user.id,
+      RATE_LIMITS.vaultRead.limit,
+      RATE_LIMITS.vaultRead.windowSeconds,
+    );
+    if (limited) return limited;
     return getVault(env, user);
   }
 
   if (url.pathname === "/api/vault" && request.method === "PUT") {
     const user = await requireSessionUser(request, env);
     if (user instanceof Response) return user;
+    const limited = await enforceRateLimit(
+      env,
+      "vault-write",
+      user.id,
+      RATE_LIMITS.vaultWrite.limit,
+      RATE_LIMITS.vaultWrite.windowSeconds,
+    );
+    if (limited) return limited;
     return putVault(request, env, user);
   }
 
@@ -90,6 +136,15 @@ async function handleApi(request, env, url) {
 }
 
 async function registerUser(request, env, url) {
+  const ipLimited = await enforceRateLimit(
+    env,
+    "register-ip",
+    getClientIp(request),
+    RATE_LIMITS.registerIp.limit,
+    RATE_LIMITS.registerIp.windowSeconds,
+  );
+  if (ipLimited) return ipLimited;
+
   const body = await readJsonBody(request, MAX_AUTH_BYTES);
   if (body instanceof Response) return body;
 
@@ -98,9 +153,25 @@ async function registerUser(request, env, url) {
     return json({ error: "Email is invalid." }, 400);
   }
 
+  const emailLimited = await enforceRateLimit(
+    env,
+    "register-email",
+    email,
+    RATE_LIMITS.registerEmail.limit,
+    RATE_LIMITS.registerEmail.windowSeconds,
+  );
+  if (emailLimited) return emailLimited;
+
   const authSecret = decodeAuthSecret(body.authSecret);
   if (!authSecret) {
     return json({ error: "Auth secret is invalid." }, 400);
+  }
+
+  const registrationOpen = await getRegistrationOpen(env);
+  const adminEmail = getAdminEmail(env);
+  const isAdminRegistration = Boolean(adminEmail && email === adminEmail);
+  if (!registrationOpen && !isAdminRegistration) {
+    return json({ error: "Registration is closed." }, 403);
   }
 
   const emailKey = userEmailKey(email);
@@ -115,6 +186,7 @@ async function registerUser(request, env, url) {
   const user = {
     id: crypto.randomUUID(),
     email,
+    role: isAdminRegistration ? "admin" : "user",
     authSalt: bytesToBase64(authSalt),
     authHash,
     createdAt: now,
@@ -124,10 +196,19 @@ async function registerUser(request, env, url) {
   await env.VAULT.put(userKey(user.id), JSON.stringify(user));
   await env.VAULT.put(emailKey, user.id);
 
-  return createSessionResponse({ user: publicUser(user) }, user, env, url);
+  return createSessionResponse({ user: publicUser(user, env) }, user, env, url);
 }
 
 async function loginUser(request, env, url) {
+  const ipLimited = await enforceRateLimit(
+    env,
+    "login-ip",
+    getClientIp(request),
+    RATE_LIMITS.loginIp.limit,
+    RATE_LIMITS.loginIp.windowSeconds,
+  );
+  if (ipLimited) return ipLimited;
+
   const body = await readJsonBody(request, MAX_AUTH_BYTES);
   if (body instanceof Response) return body;
 
@@ -136,6 +217,15 @@ async function loginUser(request, env, url) {
   if (!EMAIL_PATTERN.test(email) || !authSecret) {
     return json({ error: "Email or password is invalid." }, 400);
   }
+
+  const emailLimited = await enforceRateLimit(
+    env,
+    "login-email",
+    email,
+    RATE_LIMITS.loginEmail.limit,
+    RATE_LIMITS.loginEmail.windowSeconds,
+  );
+  if (emailLimited) return emailLimited;
 
   const user = await getUserByEmail(env, email);
   if (!user) {
@@ -148,7 +238,7 @@ async function loginUser(request, env, url) {
     return json({ error: "Email or password is invalid." }, 401);
   }
 
-  return createSessionResponse({ user: publicUser(user) }, user, env, url);
+  return createSessionResponse({ user: publicUser(user, env) }, user, env, url);
 }
 
 function logoutUser(url) {
@@ -192,6 +282,28 @@ async function putVault(request, env, user) {
   });
 
   return json({ ok: true, updatedAt });
+}
+
+async function getAdminSettings(env) {
+  return json({
+    registrationOpen: await getRegistrationOpen(env),
+    adminEmailConfigured: Boolean(getAdminEmail(env)),
+  });
+}
+
+async function putAdminSettings(request, env) {
+  const body = await readJsonBody(request, MAX_AUTH_BYTES);
+  if (body instanceof Response) return body;
+  if (typeof body.registrationOpen !== "boolean") {
+    return json({ error: "registrationOpen must be a boolean." }, 400);
+  }
+
+  await env.VAULT.put(REGISTRATION_SETTING_KEY, body.registrationOpen ? "true" : "false");
+  return json({ registrationOpen: body.registrationOpen });
+}
+
+async function getRegistrationOpen(env) {
+  return (await env.VAULT.get(REGISTRATION_SETTING_KEY, "text")) === "true";
 }
 
 async function readJsonBody(request, maxBytes) {
@@ -240,6 +352,13 @@ async function getSessionUser(request, env) {
 async function requireSessionUser(request, env) {
   const user = await getSessionUser(request, env);
   return user || json({ error: "Unauthorized." }, 401);
+}
+
+async function requireAdminUser(request, env) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "Unauthorized." }, 401);
+  if (!isAdminUser(user, env)) return json({ error: "Forbidden." }, 403);
+  return user;
 }
 
 async function createSessionResponse(data, user, env, url) {
@@ -340,15 +459,25 @@ async function getUserById(env, id) {
   }
 }
 
-function publicUser(user) {
+function publicUser(user, env) {
   return {
     id: user.id,
     email: user.email,
+    isAdmin: isAdminUser(user, env),
   };
 }
 
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
+}
+
+function getAdminEmail(env) {
+  return normalizeEmail(env.ADMIN_EMAIL || "");
+}
+
+function isAdminUser(user, env) {
+  const adminEmail = getAdminEmail(env);
+  return Boolean(adminEmail && normalizeEmail(user.email) === adminEmail);
 }
 
 function userEmailKey(email) {
@@ -361,6 +490,39 @@ function userKey(id) {
 
 function vaultKey(userId) {
   return `vault:${userId}`;
+}
+
+async function enforceRateLimit(env, scope, identifier, limit, windowSeconds) {
+  const now = Math.floor(Date.now() / 1000);
+  const bucket = Math.floor(now / windowSeconds);
+  const idHash = await hashIdentifier(identifier || "unknown");
+  const key = `rate:${scope}:${bucket}:${idHash}`;
+  const current = Number((await env.VAULT.get(key, "text")) || "0");
+  if (current >= limit) {
+    return json(
+      { error: "Too many requests. Try again later." },
+      429,
+      {
+        "Retry-After": String(windowSeconds),
+        "X-RateLimit-Limit": String(limit),
+        "X-RateLimit-Remaining": "0",
+      },
+    );
+  }
+
+  await env.VAULT.put(key, String(current + 1), {
+    expirationTtl: windowSeconds + 60,
+  });
+  return null;
+}
+
+async function hashIdentifier(value) {
+  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(String(value)));
+  return base64UrlEncode(new Uint8Array(digest));
+}
+
+function getClientIp(request) {
+  return request.headers.get("CF-Connecting-IP") || request.headers.get("X-Forwarded-For") || "unknown";
 }
 
 function isVaultEnvelope(value) {

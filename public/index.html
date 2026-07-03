@@ -78,6 +78,17 @@
         </aside>
 
         <section class="detail-panel panel">
+          <div id="adminPanel" class="admin-panel hidden">
+            <div>
+              <strong>管理员设置</strong>
+              <span id="adminSettingsStatus" class="muted">注册入口默认关闭</span>
+            </div>
+            <label class="switch-row">
+              <span>开放新用户注册</span>
+              <input id="registrationOpenToggle" type="checkbox">
+            </label>
+          </div>
+
           <form id="entryForm" autocomplete="off">
             <div class="detail-head">
               <label>
