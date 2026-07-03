@@ -22,36 +22,23 @@
       <section id="lockedView" class="unlock-grid">
         <form id="unlockForm" class="panel unlock-panel" autocomplete="off">
           <div class="panel-heading">
-            <h2>解锁</h2>
-            <span class="muted">Cloudflare KV stores ciphertext only</span>
+            <h2>登录</h2>
+            <span class="muted">Cloudflare KV stores encrypted vaults only</span>
           </div>
 
           <label>
-            <span>保险箱 ID</span>
-            <div class="secret-control">
-              <input id="vaultId" name="vaultId" autocomplete="username" required minlength="6" maxlength="80" pattern="[A-Za-z0-9][A-Za-z0-9_-]{5,79}">
-              <button id="generateVaultIdButton" type="button">生成</button>
-            </div>
+            <span>邮箱</span>
+            <input id="loginEmail" name="email" type="email" autocomplete="username" required>
           </label>
 
           <label>
-            <span>主密码</span>
-            <input id="masterPassword" name="masterPassword" type="password" autocomplete="new-password" required minlength="10">
-          </label>
-
-          <label>
-            <span>同步令牌</span>
-            <input id="syncToken" name="syncToken" type="password" autocomplete="off">
-          </label>
-
-          <label class="check-row">
-            <input id="rememberToken" type="checkbox">
-            <span>仅在此浏览器记住同步令牌</span>
+            <span>密码</span>
+            <input id="loginPassword" name="password" type="password" autocomplete="current-password" required minlength="10">
           </label>
 
           <div class="button-row">
-            <button type="submit" class="primary">解锁或创建</button>
-            <button id="localOnlyButton" type="button">本地模式</button>
+            <button type="submit" class="primary">登录</button>
+            <button id="registerButton" type="button">注册</button>
           </div>
 
           <p id="unlockMessage" class="message" role="status"></p>
@@ -59,16 +46,16 @@
 
         <aside class="panel facts-panel">
           <div class="fact">
-            <strong>主密码</strong>
-            <span>不上传，不保存，丢失后无法恢复。</span>
+            <strong>登录密码</strong>
+            <span>原始密码不上传，也用于浏览器端解密保险箱。</span>
           </div>
           <div class="fact">
-            <strong>保险箱 ID</strong>
-            <span>用于区分不同人的密文记录，可以放在分享链接里。</span>
+            <strong>用户账号</strong>
+            <span>每个邮箱对应一个独立的加密保险箱。</span>
           </div>
           <div class="fact">
-            <strong>同步令牌</strong>
-            <span>每个保险箱独立设置，只用于读写自己的密文。</span>
+            <strong>服务器</strong>
+            <span>只保存登录校验数据、session 和保险箱密文。</span>
           </div>
           <div class="fact">
             <strong>保险箱</strong>
@@ -163,7 +150,7 @@
             <div class="button-row">
               <button id="pullButton" type="button">拉取</button>
               <button id="saveButton" type="button" class="primary">保存</button>
-              <button id="lockButton" type="button">锁定</button>
+              <button id="lockButton" type="button">退出</button>
             </div>
           </div>
         </section>

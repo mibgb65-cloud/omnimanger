@@ -1,21 +1,18 @@
 const STORAGE_PREFIX = "account-secret-vault.envelope.";
-const TOKEN_PREFIX = "account-secret-vault.sync-token.";
+const LAST_EMAIL_KEY = "account-secret-vault.last-email";
 const KDF_ITERATIONS = 310000;
-const VAULT_ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_-]{5,79}$/;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
 const state = {
+  user: null,
   vault: null,
   key: null,
   salt: null,
   iterations: KDF_ITERATIONS,
-  vaultId: "",
-  syncToken: "",
   selectedId: null,
   saveTimer: null,
   saving: false,
-  remoteEnabled: false,
   passwordVisible: false,
   totpVisible: false,
 };
@@ -26,12 +23,9 @@ const els = {
   lockedView: $("lockedView"),
   vaultView: $("vaultView"),
   unlockForm: $("unlockForm"),
-  vaultId: $("vaultId"),
-  generateVaultIdButton: $("generateVaultIdButton"),
-  masterPassword: $("masterPassword"),
-  syncToken: $("syncToken"),
-  rememberToken: $("rememberToken"),
-  localOnlyButton: $("localOnlyButton"),
+  loginEmail: $("loginEmail"),
+  loginPassword: $("loginPassword"),
+  registerButton: $("registerButton"),
   unlockMessage: $("unlockMessage"),
   lockStatus: $("lockStatus"),
   syncStatus: $("syncStatus"),
@@ -63,21 +57,13 @@ const els = {
 init();
 
 function init() {
-  els.vaultId.value = getInitialVaultId();
-  const rememberedToken = localStorage.getItem(getTokenKey(els.vaultId.value));
-  if (rememberedToken) {
-    els.syncToken.value = rememberedToken;
-    els.rememberToken.checked = true;
-  }
+  els.loginEmail.value = localStorage.getItem(LAST_EMAIL_KEY) || "";
 
-  els.vaultId.addEventListener("input", handleVaultIdInput);
-  els.generateVaultIdButton.addEventListener("click", generateVaultId);
   els.unlockForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    unlockVault(false);
+    authenticate("login");
   });
-
-  els.localOnlyButton.addEventListener("click", () => unlockVault(true));
+  els.registerButton.addEventListener("click", () => authenticate("register"));
   els.searchInput.addEventListener("input", renderEntries);
   els.addEntryButton.addEventListener("click", addEntry);
   els.entryForm.addEventListener("input", handleEntryInput);
@@ -86,7 +72,7 @@ function init() {
   els.deleteEntryButton.addEventListener("click", deleteSelectedEntry);
   els.saveButton.addEventListener("click", () => saveVaultNow(true));
   els.pullButton.addEventListener("click", pullRemoteVault);
-  els.lockButton.addEventListener("click", lockVault);
+  els.lockButton.addEventListener("click", logoutVault);
 
   document.addEventListener("click", (event) => {
     const button = event.target.closest("button[data-copy]");
@@ -98,32 +84,28 @@ function init() {
   setInterval(lockIfHiddenTooLong, 30_000);
 }
 
-async function unlockVault(localOnly) {
-  const vaultId = normalizeVaultId(els.vaultId.value);
-  if (!VAULT_ID_PATTERN.test(vaultId)) {
-    setUnlockMessage("保险箱 ID 需要 6-80 位，只能包含字母、数字、短横线或下划线。");
+async function authenticate(mode) {
+  const email = normalizeEmail(els.loginEmail.value);
+  const password = els.loginPassword.value;
+
+  if (!email || !email.includes("@")) {
+    setUnlockMessage("请输入有效邮箱。");
     return;
   }
 
-  const password = els.masterPassword.value;
   if (password.length < 10) {
-    setUnlockMessage("主密码至少需要 10 个字符。");
+    setUnlockMessage("密码至少需要 10 个字符。");
     return;
   }
 
-  state.vaultId = vaultId;
-  state.syncToken = localOnly ? "" : els.syncToken.value.trim();
-  state.remoteEnabled = Boolean(state.syncToken);
-  localStorage.setItem("account-secret-vault.last-vault-id", state.vaultId);
-  setUnlockMessage("正在解锁...");
-
-  if (els.rememberToken.checked && state.syncToken) {
-    localStorage.setItem(getTokenKey(state.vaultId), state.syncToken);
-  } else {
-    localStorage.removeItem(getTokenKey(state.vaultId));
-  }
+  setUnlockMessage(mode === "register" ? "正在注册..." : "正在登录...");
 
   try {
+    const authSecret = await makeAuthSecret(email, password);
+    const data = await postJson(`/api/auth/${mode}`, { email, authSecret });
+    state.user = data.user;
+    localStorage.setItem(LAST_EMAIL_KEY, email);
+
     const envelope = await loadBestEnvelope();
     if (envelope) {
       await openEnvelope(password, envelope);
@@ -135,19 +117,25 @@ async function unlockVault(localOnly) {
     renderEntries();
     selectEntry(state.vault.entries[0]?.id || null);
     await saveVaultNow(false);
+    els.loginPassword.value = "";
     setUnlockMessage("");
   } catch (error) {
     state.key = null;
-    setUnlockMessage(error.message || "无法解锁保险箱。");
+    setUnlockMessage(error.message || "无法登录。");
   }
 }
 
-async function loadBestEnvelope() {
-  if (state.remoteEnabled) {
-    const remoteEnvelope = await fetchRemoteEnvelope();
-    if (remoteEnvelope) return remoteEnvelope;
-  }
+async function makeAuthSecret(email, password) {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    encoder.encode(`account-secret-vault auth v1\n${email}\n${password}`),
+  );
+  return bytesToBase64(new Uint8Array(digest));
+}
 
+async function loadBestEnvelope() {
+  const remoteEnvelope = await fetchRemoteEnvelope();
+  if (remoteEnvelope) return remoteEnvelope;
   return readLocalEnvelope();
 }
 
@@ -212,18 +200,31 @@ function showVault() {
   els.lockedView.classList.add("hidden");
   els.vaultView.classList.remove("hidden");
   els.lockStatus.textContent = "Unlocked";
-  els.syncStatus.textContent = state.remoteEnabled ? "Cloudflare" : "Local";
-  els.syncStatus.classList.toggle("neutral", !state.remoteEnabled);
-  els.masterPassword.value = "";
+  els.syncStatus.textContent = state.user.email;
+  els.syncStatus.classList.remove("neutral");
+}
+
+async function logoutVault() {
+  clearTimeout(state.saveTimer);
+  if (state.vault && state.key) {
+    await saveVaultNow(false);
+  }
+
+  try {
+    await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" });
+  } catch {
+    // Locking local state is still useful even if the network request fails.
+  }
+
+  lockVault();
 }
 
 function lockVault() {
-  clearTimeout(state.saveTimer);
+  state.user = null;
   state.vault = null;
   state.key = null;
   state.salt = null;
   state.selectedId = null;
-  state.vaultId = "";
   state.passwordVisible = false;
   state.totpVisible = false;
 
@@ -232,7 +233,7 @@ function lockVault() {
   els.lockedView.classList.remove("hidden");
   els.vaultView.classList.add("hidden");
   els.lockStatus.textContent = "Locked";
-  els.syncStatus.textContent = "Local";
+  els.syncStatus.textContent = "Signed out";
   els.syncStatus.classList.add("neutral");
   els.saveStatus.textContent = "未解锁";
   els.totpCode.textContent = "------";
@@ -398,21 +399,16 @@ function markDirty() {
 }
 
 async function saveVaultNow(manual) {
-  if (!state.vault || !state.key || state.saving) return;
+  if (!state.user || !state.vault || !state.key || state.saving) return;
 
   state.saving = true;
   els.saveStatus.textContent = "正在保存...";
   try {
     state.vault.updatedAt = new Date().toISOString();
     const envelope = await encryptVault(state.vault, state.key);
-    localStorage.setItem(getStorageKey(state.vaultId), JSON.stringify(envelope));
-
-    if (state.remoteEnabled) {
-      await putRemoteEnvelope(envelope);
-      els.saveStatus.textContent = "已同步到 Cloudflare";
-    } else {
-      els.saveStatus.textContent = "已保存到此浏览器";
-    }
+    localStorage.setItem(getStorageKey(state.user.id), JSON.stringify(envelope));
+    await putRemoteEnvelope(envelope);
+    els.saveStatus.textContent = "已同步到 Cloudflare";
   } catch (error) {
     els.saveStatus.textContent = error.message || "保存失败";
     if (manual) alert(els.saveStatus.textContent);
@@ -422,10 +418,7 @@ async function saveVaultNow(manual) {
 }
 
 async function pullRemoteVault() {
-  if (!state.remoteEnabled) {
-    els.saveStatus.textContent = "当前是本地模式";
-    return;
-  }
+  if (!state.user || !state.key) return;
 
   try {
     els.saveStatus.textContent = "正在拉取...";
@@ -436,12 +429,12 @@ async function pullRemoteVault() {
     }
 
     if (envelope.kdf.salt !== bytesToBase64(state.salt)) {
-      els.saveStatus.textContent = "远端保险箱需要重新解锁";
+      els.saveStatus.textContent = "远端保险箱需要重新登录解锁";
       return;
     }
 
     state.vault = normalizeVault(await decryptVault(envelope, state.key));
-    localStorage.setItem(getStorageKey(state.vaultId), JSON.stringify(envelope));
+    localStorage.setItem(getStorageKey(state.user.id), JSON.stringify(envelope));
     renderEntries();
     selectEntry(state.vault.entries[0]?.id || null);
     els.saveStatus.textContent = "已拉取远端密文";
@@ -451,25 +444,37 @@ async function pullRemoteVault() {
 }
 
 async function fetchRemoteEnvelope() {
-  const response = await fetch(`/api/vault/${encodeURIComponent(state.vaultId)}`, {
-    headers: { Authorization: `Bearer ${state.syncToken}` },
-  });
+  const response = await fetch("/api/vault", { credentials: "same-origin" });
   const data = await readJsonResponse(response);
   if (!response.ok) throw new Error(data.error || "远端读取失败。");
   return data.envelope;
 }
 
 async function putRemoteEnvelope(envelope) {
-  const response = await fetch(`/api/vault/${encodeURIComponent(state.vaultId)}`, {
+  const response = await fetch("/api/vault", {
     method: "PUT",
+    credentials: "same-origin",
     headers: {
-      Authorization: `Bearer ${state.syncToken}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(envelope),
   });
   const data = await readJsonResponse(response);
   if (!response.ok) throw new Error(data.error || "远端保存失败。");
+  return data;
+}
+
+async function postJson(url, body) {
+  const response = await fetch(url, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await readJsonResponse(response);
+  if (!response.ok) throw new Error(data.error || "请求失败。");
   return data;
 }
 
@@ -482,7 +487,8 @@ async function readJsonResponse(response) {
 }
 
 function readLocalEnvelope() {
-  const raw = localStorage.getItem(getStorageKey(state.vaultId));
+  if (!state.user) return null;
+  const raw = localStorage.getItem(getStorageKey(state.user.id));
   if (!raw) return null;
   try {
     return JSON.parse(raw);
@@ -491,41 +497,8 @@ function readLocalEnvelope() {
   }
 }
 
-function handleVaultIdInput() {
-  const vaultId = normalizeVaultId(els.vaultId.value);
-  els.syncToken.value = localStorage.getItem(getTokenKey(vaultId)) || "";
-  els.rememberToken.checked = Boolean(els.syncToken.value);
-}
-
-function generateVaultId() {
-  const bytes = crypto.getRandomValues(new Uint8Array(8));
-  const suffix = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-  els.vaultId.value = `vault-${suffix}`;
-  handleVaultIdInput();
-  els.masterPassword.focus();
-}
-
-function getInitialVaultId() {
-  const params = new URLSearchParams(window.location.search);
-  const fromUrl = normalizeVaultId(params.get("vault") || "");
-  if (VAULT_ID_PATTERN.test(fromUrl)) return fromUrl;
-
-  const remembered = localStorage.getItem("account-secret-vault.last-vault-id") || "";
-  if (VAULT_ID_PATTERN.test(remembered)) return remembered;
-
-  return `vault-${crypto.randomUUID().slice(0, 8)}`;
-}
-
-function normalizeVaultId(value) {
-  return String(value || "").trim();
-}
-
-function getStorageKey(vaultId) {
-  return `${STORAGE_PREFIX}${vaultId}`;
-}
-
-function getTokenKey(vaultId) {
-  return `${TOKEN_PREFIX}${vaultId}`;
+function getStorageKey(userId) {
+  return `${STORAGE_PREFIX}${userId}`;
 }
 
 async function deriveVaultKey(password, salt, iterations) {
@@ -673,6 +646,10 @@ async function copyInputValue(inputId) {
     document.execCommand("copy");
     els.saveStatus.textContent = "已复制";
   }
+}
+
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
 }
 
 function setUnlockMessage(message) {

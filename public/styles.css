@@ -154,7 +154,9 @@ h2 {
 }
 
 .status-pill {
+  max-width: min(280px, 70vw);
   min-width: 76px;
+  overflow: hidden;
   border: 1px solid var(--accent);
   border-radius: 999px;
   background: var(--accent-soft);
@@ -163,6 +165,8 @@ h2 {
   font-weight: 700;
   padding: 7px 10px;
   text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .status-pill.neutral {
