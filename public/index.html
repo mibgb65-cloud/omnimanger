@@ -143,6 +143,16 @@
             <h1>账号保险箱</h1>
           </div>
         </div>
+        <nav id="appNav" class="app-nav hidden" aria-label="主导航">
+          <button id="vaultNavButton" type="button" data-active="true">
+            <svg class="icon"><use href="#icon-key"></use></svg>
+            <span>保险箱</span>
+          </button>
+          <button id="settingsNavButton" type="button" data-active="false">
+            <svg class="icon"><use href="#icon-settings"></use></svg>
+            <span>设置</span>
+          </button>
+        </nav>
         <div class="status-strip">
           <span id="lockStatus" class="status-pill">
             <svg class="icon"><use href="#icon-lock"></use></svg>
@@ -152,6 +162,7 @@
             <svg class="icon"><use href="#icon-user"></use></svg>
             <span>Signed out</span>
           </span>
+          <span id="saveStatus" class="status-pill neutral" role="status" aria-live="polite">未解锁</span>
           <button id="themeToggleButton" class="theme-toggle" type="button" aria-label="切换明暗模式">
             <svg class="icon"><use href="#icon-moon"></use></svg>
             <span>深色</span>
@@ -162,8 +173,19 @@
       <section id="lockedView" class="unlock-grid">
         <form id="unlockForm" class="panel unlock-panel" autocomplete="off">
           <div class="panel-heading">
-            <h2><svg class="icon"><use href="#icon-lock"></use></svg>登录</h2>
+            <h2 id="unlockTitle"><svg class="icon"><use href="#icon-lock"></use></svg>登录</h2>
             <span class="muted">Cloudflare KV stores encrypted vaults only</span>
+          </div>
+
+          <div class="auth-mode" role="tablist" aria-label="登录或注册">
+            <button id="loginModeButton" type="button" role="tab" aria-selected="true" data-active="true">
+              <svg class="icon"><use href="#icon-log-in"></use></svg>
+              <span>登录</span>
+            </button>
+            <button id="registerButton" type="button" role="tab" aria-selected="false" data-active="false">
+              <svg class="icon"><use href="#icon-user-plus"></use></svg>
+              <span>注册</span>
+            </button>
           </div>
 
           <label>
@@ -176,19 +198,15 @@
             <input id="loginPassword" name="password" type="password" autocomplete="current-password" required minlength="10">
           </label>
 
-          <label>
+          <label id="inviteTokenRow" class="hidden">
             <span class="label-text"><svg class="icon"><use href="#icon-user-plus"></use></svg>邀请码</span>
             <input id="inviteToken" name="inviteToken" type="text" autocomplete="off" spellcheck="false">
           </label>
 
           <div class="button-row">
-            <button type="submit" class="primary">
+            <button id="unlockSubmitButton" type="submit" class="primary">
               <svg class="icon"><use href="#icon-log-in"></use></svg>
               <span>登录</span>
-            </button>
-            <button id="registerButton" type="button">
-              <svg class="icon"><use href="#icon-user-plus"></use></svg>
-              <span>注册</span>
             </button>
           </div>
 
@@ -231,29 +249,6 @@
         </aside>
 
         <section class="detail-panel panel">
-          <div id="adminPanel" class="admin-panel hidden">
-            <div class="admin-copy">
-              <span class="section-icon">
-                <svg class="icon"><use href="#icon-settings"></use></svg>
-              </span>
-              <div>
-                <strong>管理员设置</strong>
-                <span id="adminSettingsStatus" class="muted" role="status" aria-live="polite">注册入口默认关闭</span>
-              </div>
-            </div>
-            <label class="switch-row">
-              <span>开放新用户注册</span>
-              <input id="registrationOpenToggle" type="checkbox">
-            </label>
-            <div class="invite-controls">
-              <button id="createInviteButton" type="button">
-                <svg class="icon"><use href="#icon-user-plus"></use></svg>
-                <span>邀请</span>
-              </button>
-              <input id="inviteLink" type="text" readonly aria-label="邀请链接">
-            </div>
-          </div>
-
           <form id="entryForm" autocomplete="off">
             <div class="detail-head">
               <label>
@@ -343,38 +338,7 @@
           </form>
 
           <div class="bottom-bar">
-            <span id="saveStatus" class="muted" role="status" aria-live="polite">未解锁</span>
             <div class="button-row">
-              <label class="compact-control">
-                <span>自动锁定</span>
-                <select id="autoLockSelect">
-                  <option value="1">1 分钟</option>
-                  <option value="5">5 分钟</option>
-                  <option value="15">15 分钟</option>
-                  <option value="0">关闭</option>
-                </select>
-              </label>
-              <label class="compact-check">
-                <input id="localCacheToggle" type="checkbox">
-                <span>本地缓存</span>
-              </label>
-              <input id="importFileInput" class="sr-only" type="file" accept="application/json">
-              <button id="importButton" type="button">
-                <svg class="icon"><use href="#icon-cloud-download"></use></svg>
-                <span>导入</span>
-              </button>
-              <button id="exportButton" type="button">
-                <svg class="icon"><use href="#icon-save"></use></svg>
-                <span>导出</span>
-              </button>
-              <button id="changePasswordButton" type="button">
-                <svg class="icon"><use href="#icon-key"></use></svg>
-                <span>改密</span>
-              </button>
-              <button id="pullButton" type="button">
-                <svg class="icon"><use href="#icon-cloud-download"></use></svg>
-                <span>拉取</span>
-              </button>
               <button id="saveButton" type="button" class="primary">
                 <svg class="icon"><use href="#icon-save"></use></svg>
                 <span>保存</span>
@@ -386,6 +350,124 @@
             </div>
           </div>
         </section>
+      </section>
+
+      <section id="settingsView" class="settings-view hidden">
+        <div class="settings-heading">
+          <div>
+            <p class="eyebrow">Vault settings</p>
+            <h2>设置</h2>
+          </div>
+          <span class="muted">低频操作已从主编辑区移到这里。</span>
+        </div>
+
+        <div class="settings-grid">
+          <section class="panel settings-panel">
+            <div class="settings-panel-head">
+              <span class="section-icon">
+                <svg class="icon"><use href="#icon-clock"></use></svg>
+              </span>
+              <div>
+                <h3>安全偏好</h3>
+                <p class="muted">控制本机解锁和缓存行为。</p>
+              </div>
+            </div>
+            <div class="settings-list">
+              <label class="setting-row">
+                <span>
+                  <strong>自动锁定</strong>
+                  <small>离开或空闲后自动锁定保险箱。</small>
+                </span>
+                <select id="autoLockSelect">
+                  <option value="1">1 分钟</option>
+                  <option value="5">5 分钟</option>
+                  <option value="15">15 分钟</option>
+                  <option value="0">关闭</option>
+                </select>
+              </label>
+              <label class="setting-row">
+                <span>
+                  <strong>本地加密缓存</strong>
+                  <small>关闭后会删除本机保存的加密副本。</small>
+                </span>
+                <input id="localCacheToggle" type="checkbox">
+              </label>
+            </div>
+          </section>
+
+          <section class="panel settings-panel">
+            <div class="settings-panel-head">
+              <span class="section-icon">
+                <svg class="icon"><use href="#icon-cloud-download"></use></svg>
+              </span>
+              <div>
+                <h3>同步和备份</h3>
+                <p class="muted">导入、导出或从 Cloudflare 拉取密文。</p>
+              </div>
+            </div>
+            <div class="settings-actions">
+              <input id="importFileInput" class="sr-only" type="file" accept="application/json">
+              <button id="importButton" type="button">
+                <svg class="icon"><use href="#icon-cloud-download"></use></svg>
+                <span>导入备份</span>
+              </button>
+              <button id="exportButton" type="button">
+                <svg class="icon"><use href="#icon-save"></use></svg>
+                <span>导出备份</span>
+              </button>
+              <button id="pullButton" type="button">
+                <svg class="icon"><use href="#icon-cloud-download"></use></svg>
+                <span>拉取远端</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="panel settings-panel">
+            <div class="settings-panel-head">
+              <span class="section-icon">
+                <svg class="icon"><use href="#icon-key"></use></svg>
+              </span>
+              <div>
+                <h3>账号安全</h3>
+                <p class="muted">修改主密码会重新加密整个保险箱。</p>
+              </div>
+            </div>
+            <div class="settings-actions">
+              <button id="changePasswordButton" type="button">
+                <svg class="icon"><use href="#icon-key"></use></svg>
+                <span>修改主密码</span>
+              </button>
+            </div>
+          </section>
+
+          <section id="adminPanel" class="panel settings-panel hidden">
+            <div class="settings-panel-head">
+              <span class="section-icon">
+                <svg class="icon"><use href="#icon-settings"></use></svg>
+              </span>
+              <div>
+                <h3>管理员设置</h3>
+                <p id="adminSettingsStatus" class="muted" role="status" aria-live="polite">注册入口默认关闭</p>
+              </div>
+            </div>
+            <div class="settings-list">
+              <label class="setting-row">
+                <span>
+                  <strong>开放新用户注册</strong>
+                  <small>关闭时只能通过一次性邀请链接注册。</small>
+                </span>
+                <input id="registrationOpenToggle" type="checkbox">
+              </label>
+              <div class="invite-controls">
+                <button id="createInviteButton" type="button">
+                  <svg class="icon"><use href="#icon-user-plus"></use></svg>
+                  <span>生成邀请</span>
+                </button>
+                <input id="inviteLink" type="text" readonly aria-label="邀请链接">
+              </div>
+            </div>
+          </section>
+        </div>
       </section>
     </main>
 

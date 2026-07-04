@@ -30,6 +30,8 @@ const state = {
   clipboardClearTimer: null,
   passwordVisible: false,
   totpVisible: false,
+  authMode: "login",
+  appPage: "vault",
 };
 
 const $ = (id) => (hasDocument ? document.getElementById(id) : null);
@@ -38,11 +40,19 @@ const els = hasDocument
   ? {
       lockedView: $("lockedView"),
       vaultView: $("vaultView"),
+      settingsView: $("settingsView"),
+      appNav: $("appNav"),
+      vaultNavButton: $("vaultNavButton"),
+      settingsNavButton: $("settingsNavButton"),
       unlockForm: $("unlockForm"),
+      unlockTitle: $("unlockTitle"),
+      loginModeButton: $("loginModeButton"),
       loginEmail: $("loginEmail"),
       loginPassword: $("loginPassword"),
+      inviteTokenRow: $("inviteTokenRow"),
       inviteToken: $("inviteToken"),
       registerButton: $("registerButton"),
+      unlockSubmitButton: $("unlockSubmitButton"),
       themeToggleButton: $("themeToggleButton"),
       adminPanel: $("adminPanel"),
       adminSettingsStatus: $("adminSettingsStatus"),
@@ -104,16 +114,21 @@ function init() {
   initTheme();
   initSecurityPreferences();
   els.loginEmail.value = localStorage.getItem(LAST_EMAIL_KEY) || "";
-  els.inviteToken.value = new URLSearchParams(location.search).get("invite") || "";
+  const inviteToken = new URLSearchParams(location.search).get("invite") || "";
+  els.inviteToken.value = inviteToken;
+  setAuthMode(inviteToken ? "register" : "login");
 
   els.themeToggleButton.addEventListener("click", toggleTheme);
+  els.vaultNavButton.addEventListener("click", () => showAppPage("vault"));
+  els.settingsNavButton.addEventListener("click", () => showAppPage("settings"));
   els.registrationOpenToggle.addEventListener("change", saveAdminSettings);
   els.createInviteButton.addEventListener("click", createInvite);
   els.unlockForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    authenticate("login");
+    authenticate(state.authMode);
   });
-  els.registerButton.addEventListener("click", () => authenticate("register"));
+  els.loginModeButton.addEventListener("click", () => setAuthMode("login"));
+  els.registerButton.addEventListener("click", () => setAuthMode("register"));
   els.searchInput.addEventListener("input", renderEntries);
   els.addEntryButton.addEventListener("click", addEntry);
   els.entryForm.addEventListener("input", handleEntryInput);
@@ -216,6 +231,24 @@ function saveLocalCachePreference() {
 
 function markActivity() {
   state.lastActivityAt = Date.now();
+}
+
+function setAuthMode(mode) {
+  const isRegister = mode === "register";
+  state.authMode = isRegister ? "register" : "login";
+
+  setHeadingText(els.unlockTitle, isRegister ? "注册" : "登录");
+  setInlineIcon(els.unlockTitle, isRegister ? "icon-user-plus" : "icon-lock");
+  setInlineLabel(els.unlockSubmitButton, isRegister ? "注册" : "登录");
+  setInlineIcon(els.unlockSubmitButton, isRegister ? "icon-user-plus" : "icon-log-in");
+  els.loginPassword.autocomplete = isRegister ? "new-password" : "current-password";
+  els.inviteTokenRow.classList.toggle("hidden", !isRegister);
+
+  els.loginModeButton.dataset.active = isRegister ? "false" : "true";
+  els.registerButton.dataset.active = isRegister ? "true" : "false";
+  els.loginModeButton.setAttribute("aria-selected", isRegister ? "false" : "true");
+  els.registerButton.setAttribute("aria-selected", isRegister ? "true" : "false");
+  setUnlockMessage("");
 }
 
 async function authenticate(mode) {
@@ -386,7 +419,8 @@ function normalizeEntry(entry) {
 
 function showVault() {
   els.lockedView.classList.add("hidden");
-  els.vaultView.classList.remove("hidden");
+  els.appNav.classList.remove("hidden");
+  showAppPage("vault");
   setInlineLabel(els.lockStatus, "Unlocked");
   setInlineIcon(els.lockStatus, "icon-unlock");
   setInlineLabel(els.syncStatus, state.user.email);
@@ -398,6 +432,17 @@ function showVault() {
   } else {
     els.adminPanel.classList.add("hidden");
   }
+}
+
+function showAppPage(page) {
+  const showSettings = page === "settings";
+  state.appPage = showSettings ? "settings" : "vault";
+  els.vaultView.classList.toggle("hidden", showSettings);
+  els.settingsView.classList.toggle("hidden", !showSettings);
+  els.vaultNavButton.dataset.active = showSettings ? "false" : "true";
+  els.settingsNavButton.dataset.active = showSettings ? "true" : "false";
+  els.vaultNavButton.setAttribute("aria-current", showSettings ? "false" : "page");
+  els.settingsNavButton.setAttribute("aria-current", showSettings ? "page" : "false");
 }
 
 async function logoutVault() {
@@ -443,7 +488,9 @@ function lockVault() {
   els.adminPanel.classList.add("hidden");
   els.entryList.textContent = "";
   els.lockedView.classList.remove("hidden");
+  els.appNav.classList.add("hidden");
   els.vaultView.classList.add("hidden");
+  els.settingsView.classList.add("hidden");
   setInlineLabel(els.lockStatus, "Locked");
   setInlineIcon(els.lockStatus, "icon-lock");
   setInlineLabel(els.syncStatus, "Signed out");
@@ -1453,6 +1500,15 @@ function normalizeEmail(email) {
 
 function setUnlockMessage(message) {
   els.unlockMessage.textContent = message;
+}
+
+function setHeadingText(element, text) {
+  const textNode = Array.from(element.childNodes).find((node) => node.nodeType === Node.TEXT_NODE);
+  if (textNode) {
+    textNode.textContent = text;
+    return;
+  }
+  element.append(document.createTextNode(text));
 }
 
 function setInlineLabel(element, text) {
