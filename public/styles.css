@@ -652,6 +652,33 @@ html[data-theme="dark"] .auth-mode button[data-active="true"] {
   border-bottom: 1px solid var(--color-border-subtle);
 }
 
+.tag-filter {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--color-border-subtle);
+  padding: 9px 10px;
+}
+
+.tag-filter:empty {
+  display: none;
+}
+
+.tag-filter button {
+  min-height: 30px;
+  border-radius: var(--radius-pill);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.tag-filter button[data-active="true"] {
+  border-color: var(--color-accent-border);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
 .search {
   gap: 5px;
 }
@@ -759,7 +786,7 @@ html[data-theme="dark"] .auth-mode button[data-active="true"] {
 .entry-copy {
   display: grid;
   min-width: 0;
-  gap: 2px;
+  gap: 4px;
 }
 
 .entry-item strong {
@@ -779,6 +806,39 @@ html[data-theme="dark"] .auth-mode button[data-active="true"] {
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.entry-badges {
+  display: flex;
+  min-width: 0;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.entry-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-soft);
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 4px 7px;
+  white-space: nowrap;
+}
+
+.entry-badge[data-tone="good"] {
+  border-color: var(--color-accent-border);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.entry-badge[data-tone="warn"] {
+  border-color: var(--color-warning);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
 }
 
 .entry-item.active {
@@ -995,6 +1055,126 @@ html[data-theme="dark"] .auth-mode button[data-active="true"] {
   flex-wrap: wrap;
   border-top: 1px solid var(--color-border-subtle);
   padding-top: 12px;
+}
+
+.security-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 8px;
+}
+
+.security-stat {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-soft);
+  padding: 10px;
+}
+
+.security-stat strong,
+.security-stat span {
+  display: block;
+}
+
+.security-stat strong {
+  color: var(--color-text);
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.security-stat span {
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.security-check-list,
+.admin-list {
+  display: grid;
+  gap: 8px;
+}
+
+.security-check-item,
+.admin-list-item {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-soft);
+  padding: 10px 11px;
+}
+
+.security-check-item[data-tone="danger"] {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+.security-check-item[data-tone="warning"] {
+  border-color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
+.security-check-item strong,
+.admin-list-item strong {
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.security-check-item span,
+.admin-list-item span {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.admin-subsection {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--color-border-subtle);
+  padding-top: 12px;
+}
+
+.admin-subsection-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.admin-subsection-head strong {
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.admin-subsection-head button {
+  min-height: 32px;
+  padding: 0 10px;
+}
+
+.admin-list-item {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.admin-list-copy {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.admin-list-copy code {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 3px 6px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .settings-panel.admin-panel {

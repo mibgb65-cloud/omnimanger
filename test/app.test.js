@@ -7,15 +7,19 @@ if (!globalThis.crypto) {
 }
 
 const {
+  analyzeVaultSecurity,
   base32ToBytes,
   generatePassword,
   generateTotp,
+  getVaultTags,
   isVaultEnvelope,
   normalizeEmail,
   normalizePasswordLength,
   normalizePasswordOptions,
+  parseEntryTags,
   parseTotpInput,
   scorePassword,
+  summarizeImportDiff,
 } = await import("../public/app.js");
 
 test("base32 and TOTP follow the RFC 6238 SHA-1 vector truncated to 6 digits", async () => {
@@ -79,4 +83,48 @@ test("email normalization and envelope validation are deterministic", () => {
     true,
   );
   assert.equal(isVaultEnvelope({ version: 1 }), false);
+});
+
+test("tag and security analysis helpers summarize vault issues", () => {
+  const vault = {
+    entries: [
+      { id: "1", name: "Main", login: "main@example.com", tags: "work, google", password: "abc", totpSecret: "", recoveryCodes: "" },
+      { id: "2", name: "Backup", login: "backup@example.com", tags: "work personal", password: "abc", totpSecret: "JBSWY3DPEHPK3PXP", recoveryCodes: "123" },
+      { id: "3", name: "Empty", login: "", tags: "", password: "", totpSecret: "", recoveryCodes: "" },
+    ],
+  };
+
+  assert.deepEqual(parseEntryTags("work, personal  google"), ["work", "personal", "google"]);
+  assert.deepEqual(getVaultTags(vault), ["google", "personal", "work"]);
+
+  const report = analyzeVaultSecurity(vault);
+  assert.equal(report.totalEntries, 3);
+  assert.equal(report.emptyPasswords.length, 1);
+  assert.equal(report.weakPasswords.length, 2);
+  assert.equal(report.duplicatePasswordGroups.length, 1);
+  assert.equal(report.missingTotp.length, 2);
+  assert.equal(report.missingRecovery.length, 2);
+});
+
+test("import diff summarizes added matched and removed accounts", () => {
+  const current = {
+    entries: [
+      { id: "1", name: "Main", login: "main@example.com" },
+      { id: "2", name: "Old", login: "" },
+    ],
+  };
+  const incoming = {
+    entries: [
+      { id: "3", name: "Main copy", login: "main@example.com" },
+      { id: "4", name: "New", login: "new@example.com" },
+    ],
+  };
+
+  assert.deepEqual(summarizeImportDiff(current, incoming), {
+    currentTotal: 2,
+    incomingTotal: 2,
+    added: 1,
+    matched: 1,
+    removed: 1,
+  });
 });

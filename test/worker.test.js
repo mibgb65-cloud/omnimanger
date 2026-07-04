@@ -181,6 +181,59 @@ test("admin invite allows one closed-registration signup", async () => {
   assert.equal(reused.status, 403);
 });
 
+test("admin can list revoke invites and inspect audit events", async () => {
+  const env = makeEnv();
+  const admin = await register(env, "admin@example.com", "correct horse battery");
+  const cookie = sessionCookie(admin);
+
+  const inviteResponse = await worker.fetch(
+    new Request("https://vault.test/api/admin/invites", {
+      method: "POST",
+      headers: { Cookie: cookie },
+    }),
+    env,
+  );
+  assert.equal(inviteResponse.status, 200);
+  const invite = await inviteResponse.json();
+
+  const listed = await worker.fetch(
+    new Request("https://vault.test/api/admin/invites", {
+      headers: { Cookie: cookie },
+    }),
+    env,
+  );
+  assert.equal(listed.status, 200);
+  const listData = await listed.json();
+  assert.equal(listData.invites[0].token, invite.token);
+  assert.equal(listData.invites[0].status, "active");
+
+  const revoked = await worker.fetch(
+    jsonRequest("/api/admin/invites/revoke", { token: invite.token }, { cookie }),
+    env,
+  );
+  assert.equal(revoked.status, 200);
+
+  const afterRevoke = await worker.fetch(
+    new Request("https://vault.test/api/admin/invites", {
+      headers: { Cookie: cookie },
+    }),
+    env,
+  );
+  const afterRevokeData = await afterRevoke.json();
+  assert.equal(afterRevokeData.invites[0].status, "revoked");
+
+  const audit = await worker.fetch(
+    new Request("https://vault.test/api/admin/audit", {
+      headers: { Cookie: cookie },
+    }),
+    env,
+  );
+  assert.equal(audit.status, 200);
+  const auditData = await audit.json();
+  assert.ok(auditData.events.some((event) => event.type === "invite_created"));
+  assert.ok(auditData.events.some((event) => event.type === "invite_revoked"));
+});
+
 test("vault PUT rejects stale revisions", async () => {
   const env = makeEnv();
   const registered = await register(env, "admin@example.com", "correct horse battery");

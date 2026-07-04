@@ -3,6 +3,8 @@ const MAX_AUTH_BYTES = 4096;
 const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const REGISTRATION_SETTING_KEY = "settings:registration-open";
+const INVITE_INDEX_KEY = "admin:invites";
+const AUDIT_INDEX_KEY = "admin:audit";
 const AUTH_VERIFIER_VERSION = 3;
 const MIN_VAULT_KDF_ITERATIONS = 100000;
 const MAX_VAULT_KDF_ITERATIONS = 2000000;
@@ -142,6 +144,12 @@ async function handleApi(request, env, url) {
     return putAdminSettings(request, env);
   }
 
+  if (url.pathname === "/api/admin/invites" && request.method === "GET") {
+    const user = await requireAdminUser(request, env);
+    if (user instanceof Response) return user;
+    return listInvites(env);
+  }
+
   if (url.pathname === "/api/admin/invites" && request.method === "POST") {
     const user = await requireAdminUser(request, env);
     if (user instanceof Response) return user;
@@ -154,6 +162,26 @@ async function handleApi(request, env, url) {
     );
     if (limited) return limited;
     return createInvite(env, user);
+  }
+
+  if (url.pathname === "/api/admin/invites/revoke" && request.method === "POST") {
+    const user = await requireAdminUser(request, env);
+    if (user instanceof Response) return user;
+    const limited = await enforceRateLimit(
+      env,
+      "admin-settings",
+      user.id,
+      RATE_LIMITS.adminSettings.limit,
+      RATE_LIMITS.adminSettings.windowSeconds,
+    );
+    if (limited) return limited;
+    return revokeInvite(request, env, user);
+  }
+
+  if (url.pathname === "/api/admin/audit" && request.method === "GET") {
+    const user = await requireAdminUser(request, env);
+    if (user instanceof Response) return user;
+    return listAuditEvents(env);
   }
 
   if (url.pathname === "/api/vault" && request.method === "GET") {
@@ -254,6 +282,7 @@ async function registerUser(request, env, url) {
   }
 
   logSecurityEvent("user_registered", { userId: user.id, role: user.role, invited: inviteAllowed });
+  await recordAuditEvent(env, "user_registered", { userId: user.id, role: user.role, invited: inviteAllowed });
   return createSessionResponse({ user: publicUser(user, env) }, user, env, url);
 }
 
@@ -288,12 +317,14 @@ async function loginUser(request, env, url) {
   const user = await getUserByEmail(env, email);
   if (!user) {
     logSecurityEvent("login_failed", { reason: "unknown_user" });
+    await recordAuditEvent(env, "login_failed", { reason: "unknown_user" });
     return json({ error: "Email or password is invalid." }, 401);
   }
 
   const verified = await verifyAuthSecret(env, user, authSecret);
   if (!verified) {
     logSecurityEvent("login_failed", { reason: "bad_secret", userId: user.id });
+    await recordAuditEvent(env, "login_failed", { reason: "bad_secret", userId: user.id });
     return json({ error: "Email or password is invalid." }, 401);
   }
 
@@ -303,6 +334,7 @@ async function loginUser(request, env, url) {
 
   await recordUserActivity(env, verified.upgradedUser || user, { lastLoginAt: new Date().toISOString() });
   logSecurityEvent("login_succeeded", { userId: user.id });
+  await recordAuditEvent(env, "login_succeeded", { userId: user.id });
   return createSessionResponse({ user: publicUser(user, env) }, user, env, url);
 }
 
@@ -329,6 +361,7 @@ async function logoutAllSessions(env, user, url) {
     }),
   );
   logSecurityEvent("sessions_revoked", { userId: user.id });
+  await recordAuditEvent(env, "sessions_revoked", { userId: user.id });
   return json(
     { ok: true },
     200,
@@ -439,6 +472,7 @@ async function changePassword(request, env, user) {
   });
   await env.VAULT.put(userKey(nextUser.id), JSON.stringify(nextUser));
   logSecurityEvent("password_changed", { userId: user.id });
+  await recordAuditEvent(env, "password_changed", { userId: user.id });
   return json({ ok: true, updatedAt, revision });
 }
 
@@ -458,6 +492,7 @@ async function putAdminSettings(request, env) {
 
   await env.VAULT.put(REGISTRATION_SETTING_KEY, body.registrationOpen ? "true" : "false");
   logSecurityEvent("admin_registration_setting_changed", { registrationOpen: body.registrationOpen });
+  await recordAuditEvent(env, "admin_registration_setting_changed", { registrationOpen: body.registrationOpen });
   return json({ registrationOpen: body.registrationOpen });
 }
 
@@ -474,9 +509,35 @@ async function createInvite(env, user) {
   await env.VAULT.put(inviteKey(token), JSON.stringify(record), {
     expirationTtl: INVITE_TTL_SECONDS + 60,
   });
+  await upsertInviteIndex(env, { token, ...record, status: "active" });
 
   logSecurityEvent("invite_created", { userId: user.id, expiresAt });
+  await recordAuditEvent(env, "invite_created", { userId: user.id, expiresAt });
   return json({ token, expiresAt });
+}
+
+async function listInvites(env) {
+  const invites = (await readJsonArray(env, INVITE_INDEX_KEY)).map(publicInviteRecord);
+  return json({ invites });
+}
+
+async function revokeInvite(request, env, user) {
+  const body = await readJsonBody(request, MAX_AUTH_BYTES);
+  if (body instanceof Response) return body;
+  const token = normalizeInviteToken(body.token);
+  if (!token) return json({ error: "Invite token is invalid." }, 400);
+
+  const raw = await env.VAULT.get(inviteKey(token), "text");
+  if (raw) await env.VAULT.delete(inviteKey(token));
+  const revokedAt = new Date().toISOString();
+  await updateInviteIndex(env, token, {
+    revokedAt,
+    revokedBy: user.id,
+    status: "revoked",
+  });
+  logSecurityEvent("invite_revoked", { userId: user.id });
+  await recordAuditEvent(env, "invite_revoked", { userId: user.id });
+  return json({ ok: true, revokedAt });
 }
 
 async function getRegistrationOpen(env) {
@@ -506,6 +567,12 @@ async function consumeInvite(env, token, user) {
     invite.usedBy = user.id;
     invite.usedEmail = user.email;
     invite.usedAt = new Date().toISOString();
+    await updateInviteIndex(env, token, {
+      usedBy: user.id,
+      usedEmail: user.email,
+      usedAt: invite.usedAt,
+      status: "used",
+    });
     await env.VAULT.put(`used-${key}:${user.id}`, JSON.stringify(invite), {
       expirationTtl: INVITE_TTL_SECONDS,
     });
@@ -514,6 +581,89 @@ async function consumeInvite(env, token, user) {
   }
 
   await env.VAULT.delete(key);
+}
+
+async function upsertInviteIndex(env, invite) {
+  const invites = await readJsonArray(env, INVITE_INDEX_KEY);
+  const next = [invite, ...invites.filter((item) => item.token !== invite.token)].slice(0, 100);
+  await env.VAULT.put(INVITE_INDEX_KEY, JSON.stringify(next));
+}
+
+async function updateInviteIndex(env, token, fields) {
+  const invites = await readJsonArray(env, INVITE_INDEX_KEY);
+  const index = invites.findIndex((item) => item.token === token);
+  if (index === -1) {
+    invites.unshift({
+      token,
+      createdAt: fields.revokedAt || new Date().toISOString(),
+      ...fields,
+    });
+  } else {
+    invites[index] = {
+      ...invites[index],
+      ...fields,
+    };
+  }
+  await env.VAULT.put(INVITE_INDEX_KEY, JSON.stringify(invites.slice(0, 100)));
+}
+
+function publicInviteRecord(invite) {
+  const status =
+    invite.status === "used" || invite.usedAt
+      ? "used"
+      : invite.status === "revoked" || invite.revokedAt
+        ? "revoked"
+        : invite.expiresAt && Date.now() >= Date.parse(invite.expiresAt)
+          ? "expired"
+          : "active";
+  return {
+    token: invite.token,
+    createdAt: invite.createdAt || null,
+    expiresAt: invite.expiresAt || null,
+    usedAt: invite.usedAt || null,
+    usedEmail: invite.usedEmail || null,
+    revokedAt: invite.revokedAt || null,
+    status,
+  };
+}
+
+async function listAuditEvents(env) {
+  return json({ events: (await readJsonArray(env, AUDIT_INDEX_KEY)).map(publicAuditEvent) });
+}
+
+async function recordAuditEvent(env, type, details = {}) {
+  try {
+    const events = await readJsonArray(env, AUDIT_INDEX_KEY);
+    events.unshift({
+      id: crypto.randomUUID(),
+      type,
+      at: new Date().toISOString(),
+      details,
+    });
+    await env.VAULT.put(AUDIT_INDEX_KEY, JSON.stringify(events.slice(0, 100)));
+  } catch {
+    // Audit logging must never block the primary security action.
+  }
+}
+
+function publicAuditEvent(event) {
+  return {
+    id: event.id,
+    type: event.type,
+    at: event.at,
+    details: event.details || {},
+  };
+}
+
+async function readJsonArray(env, key) {
+  const raw = await env.VAULT.get(key, "text");
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 async function readJsonBody(request, maxBytes) {

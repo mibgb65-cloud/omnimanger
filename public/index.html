@@ -158,6 +158,11 @@
         <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
         <path d="M15 2v6h6"></path>
       </symbol>
+      <symbol id="icon-clipboard-check" viewBox="0 0 24 24">
+        <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"></path>
+        <path d="M9 5a3 3 0 0 1 6 0v0a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v0Z"></path>
+        <path d="m9 14 2 2 4-4"></path>
+      </symbol>
     </svg>
     <a class="skip-link" href="#mainContent">跳到主要内容</a>
     <main id="mainContent" class="shell" tabindex="-1">
@@ -279,6 +284,7 @@
               <span class="sr-only">新增账号</span>
             </button>
           </div>
+          <div id="tagFilter" class="tag-filter" aria-label="标签筛选"></div>
           <div id="entryList" class="entry-list" role="listbox" aria-label="账号列表"></div>
         </aside>
 
@@ -490,6 +496,20 @@
             </div>
           </section>
 
+          <section class="panel settings-panel" data-settings-section="security">
+            <div class="settings-panel-head">
+              <span class="section-icon">
+                <svg class="icon"><use href="#icon-clipboard-check"></use></svg>
+              </span>
+              <div>
+                <h3>安全检查</h3>
+                <p class="muted">检查弱密码、重复密码、缺少 2FA 和恢复码。</p>
+              </div>
+            </div>
+            <div id="securitySummary" class="security-summary"></div>
+            <div id="securityCheckList" class="security-check-list"></div>
+          </section>
+
           <section class="panel settings-panel" data-settings-section="data">
             <div class="settings-panel-head">
               <span class="section-icon">
@@ -564,6 +584,26 @@
                 </button>
                 <input id="inviteLink" type="text" readonly aria-label="邀请链接">
               </div>
+              <div class="admin-subsection">
+                <div class="admin-subsection-head">
+                  <strong>邀请链接</strong>
+                  <button id="refreshInvitesButton" type="button">
+                    <svg class="icon"><use href="#icon-refresh"></use></svg>
+                    <span>刷新</span>
+                  </button>
+                </div>
+                <div id="inviteList" class="admin-list"></div>
+              </div>
+              <div class="admin-subsection">
+                <div class="admin-subsection-head">
+                  <strong>审计日志</strong>
+                  <button id="refreshAuditButton" type="button">
+                    <svg class="icon"><use href="#icon-refresh"></use></svg>
+                    <span>刷新</span>
+                  </button>
+                </div>
+                <div id="auditList" class="admin-list"></div>
+              </div>
             </div>
           </section>
         </div>
@@ -580,6 +620,7 @@
         <span class="entry-copy">
           <strong></strong>
           <span class="entry-meta"></span>
+          <span class="entry-badges"></span>
         </span>
       </button>
     </template>

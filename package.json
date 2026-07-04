@@ -8,6 +8,7 @@
   "scripts": {
     "check": "node --check src/index.js && node --check public/app.js && node --test",
     "test": "node --test",
+    "e2e": "python -m unittest discover -s e2e -p \"*.py\"",
     "dev": "wrangler dev --local --port 8787",
     "deploy": "wrangler deploy"
   }

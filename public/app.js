@@ -39,6 +39,7 @@ const state = {
   appPage: "vault",
   settingsSection: "security",
   mobilePanel: "list",
+  selectedTag: "",
   online: true,
 };
 
@@ -75,6 +76,7 @@ const els = hasDocument
       sessionStatus: $("sessionStatus"),
       saveStatus: $("saveStatus"),
       searchInput: $("searchInput"),
+      tagFilter: $("tagFilter"),
       addEntryButton: $("addEntryButton"),
       backToListButton: $("backToListButton"),
       detailEmptyState: $("detailEmptyState"),
@@ -105,6 +107,12 @@ const els = hasDocument
       exportButton: $("exportButton"),
       changePasswordButton: $("changePasswordButton"),
       logoutAllButton: $("logoutAllButton"),
+      securitySummary: $("securitySummary"),
+      securityCheckList: $("securityCheckList"),
+      refreshInvitesButton: $("refreshInvitesButton"),
+      refreshAuditButton: $("refreshAuditButton"),
+      inviteList: $("inviteList"),
+      auditList: $("auditList"),
       autoLockSelect: $("autoLockSelect"),
       localCacheToggle: $("localCacheToggle"),
       pullButton: $("pullButton"),
@@ -163,6 +171,7 @@ function init() {
     renderEntries();
     setMobileVaultPanel("list");
   });
+  els.tagFilter.addEventListener("click", handleTagFilterClick);
   els.addEntryButton.addEventListener("click", addEntry);
   els.emptyAddButton.addEventListener("click", addEntry);
   els.backToListButton.addEventListener("click", () => setMobileVaultPanel("list"));
@@ -181,6 +190,8 @@ function init() {
   els.exportButton.addEventListener("click", exportVaultBackup);
   els.changePasswordButton.addEventListener("click", changeMasterPassword);
   els.logoutAllButton.addEventListener("click", logoutAllSessions);
+  els.refreshInvitesButton.addEventListener("click", loadInviteList);
+  els.refreshAuditButton.addEventListener("click", loadAuditLog);
   els.autoLockSelect.addEventListener("change", saveAutoLockPreference);
   els.localCacheToggle.addEventListener("change", saveLocalCachePreference);
   els.saveButton.addEventListener("click", () => saveVaultNow(true));
@@ -542,6 +553,8 @@ function showVault() {
     els.adminPanel.classList.remove("hidden");
     els.adminSettingsTab.classList.remove("hidden");
     loadAdminSettings();
+    loadInviteList();
+    loadAuditLog();
   } else {
     els.adminPanel.classList.add("hidden");
     els.adminSettingsTab.classList.add("hidden");
@@ -823,6 +836,8 @@ function renderEntries() {
   if (!state.vault) return;
 
   els.entryList.textContent = "";
+  renderTagFilters();
+  renderSecurityCheck();
   const entries = getFilteredEntries();
   const query = els.searchInput.value.trim().toLowerCase();
 
@@ -852,7 +867,8 @@ function renderEntries() {
     item.setAttribute("aria-selected", entry.id === state.selectedId ? "true" : "false");
     item.classList.toggle("active", entry.id === state.selectedId);
     item.querySelector("strong").textContent = entry.name || "未命名账号";
-    item.querySelector(".entry-meta").textContent = entry.login || entry.tags || "无登录名";
+    item.querySelector(".entry-meta").textContent = formatEntryMeta(entry);
+    renderEntryBadges(item.querySelector(".entry-badges"), entry);
     initDecorativeIcons(item);
     item.addEventListener("click", () => selectEntry(entry.id, { openDetail: true }));
     els.entryList.append(item);
@@ -863,11 +879,90 @@ function getFilteredEntries() {
   if (!state.vault) return [];
   const query = els.searchInput.value.trim().toLowerCase();
   return state.vault.entries.filter((entry) => {
+    const tags = parseEntryTags(entry.tags);
+    if (state.selectedTag && !tags.includes(state.selectedTag)) return false;
     const haystack = [entry.name, entry.login, entry.backupEmail, entry.backupPhone, entry.tags, entry.notes]
       .join(" ")
       .toLowerCase();
     return haystack.includes(query);
   });
+}
+
+function renderTagFilters() {
+  if (!state.vault || !els.tagFilter) return;
+  const tags = getVaultTags(state.vault);
+  if (state.selectedTag && !tags.includes(state.selectedTag)) {
+    state.selectedTag = "";
+  }
+
+  els.tagFilter.textContent = "";
+  if (!tags.length) return;
+  const allButton = createTagButton("", `全部 ${state.vault.entries.length}`);
+  els.tagFilter.append(allButton);
+  for (const tag of tags) {
+    const count = state.vault.entries.filter((entry) => parseEntryTags(entry.tags).includes(tag)).length;
+    els.tagFilter.append(createTagButton(tag, `${tag} ${count}`));
+  }
+}
+
+function createTagButton(tag, label) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.dataset.tag = tag;
+  button.dataset.active = state.selectedTag === tag ? "true" : "false";
+  button.textContent = label;
+  return button;
+}
+
+function handleTagFilterClick(event) {
+  const button = event.target.closest("button[data-tag]");
+  if (!button) return;
+  state.selectedTag = button.dataset.tag || "";
+  renderEntries();
+  setMobileVaultPanel("list");
+}
+
+function renderEntryBadges(container, entry) {
+  container.textContent = "";
+  const badges = [
+    { label: entry.password ? "密码" : "无密码", tone: entry.password ? "good" : "warn" },
+    { label: entry.totpSecret ? "2FA" : "无2FA", tone: entry.totpSecret ? "good" : "warn" },
+    { label: entry.recoveryCodes ? "恢复码" : "无恢复码", tone: entry.recoveryCodes ? "good" : "warn" },
+  ];
+  for (const badge of badges) {
+    const item = document.createElement("span");
+    item.className = "entry-badge";
+    item.dataset.tone = badge.tone;
+    item.textContent = badge.label;
+    container.append(item);
+  }
+}
+
+function formatEntryMeta(entry) {
+  const parts = [];
+  if (entry.login) parts.push(entry.login);
+  if (entry.tags) parts.push(entry.tags);
+  if (entry.updatedAt) parts.push(`更新 ${formatShortDate(entry.updatedAt)}`);
+  return parts.join(" / ") || "无登录名";
+}
+
+function getVaultTags(vault) {
+  return Array.from(new Set(vault.entries.flatMap((entry) => parseEntryTags(entry.tags)))).sort((a, b) =>
+    a.localeCompare(b),
+  );
+}
+
+function parseEntryTags(value) {
+  return String(value || "")
+    .split(/[,\s]+/)
+    .map((tag) => tag.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function formatShortDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "未知";
+  return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
 function selectEntry(id, options = {}) {
@@ -1025,6 +1120,142 @@ function updatePasswordStatus() {
   const duplicateText = duplicateCount ? `，与 ${duplicateCount} 个账号重复` : "";
   els.passwordStrength.textContent = `${strength.label}${duplicateText}`;
   els.passwordStrength.dataset.level = duplicateCount ? "duplicate" : strength.level;
+}
+
+function renderSecurityCheck() {
+  if (!hasDocument || !els.securitySummary || !state.vault) return;
+  const report = analyzeVaultSecurity(state.vault);
+  els.securitySummary.textContent = "";
+  els.securityCheckList.textContent = "";
+
+  for (const stat of [
+    { label: "账号", value: report.totalEntries },
+    { label: "问题", value: report.totalIssues },
+    { label: "弱密码", value: report.weakPasswords.length },
+    { label: "重复密码", value: report.duplicatePasswordGroups.length },
+  ]) {
+    const item = document.createElement("div");
+    const value = document.createElement("strong");
+    const label = document.createElement("span");
+    item.className = "security-stat";
+    value.textContent = String(stat.value);
+    label.textContent = stat.label;
+    item.append(value, label);
+    els.securitySummary.append(item);
+  }
+
+  const checks = securityReportItems(report);
+  if (!checks.length) {
+    const item = document.createElement("div");
+    const title = document.createElement("strong");
+    const detail = document.createElement("span");
+    item.className = "security-check-item";
+    title.textContent = "当前没有明显风险";
+    detail.textContent = "没有发现弱密码、重复密码或缺失 2FA/恢复码的账号。";
+    item.append(title, detail);
+    els.securityCheckList.append(item);
+    return;
+  }
+
+  for (const check of checks) {
+    const item = document.createElement("div");
+    const title = document.createElement("strong");
+    const detail = document.createElement("span");
+    item.className = "security-check-item";
+    item.dataset.tone = check.tone;
+    title.textContent = check.title;
+    detail.textContent = check.detail;
+    item.append(title, detail);
+    els.securityCheckList.append(item);
+  }
+}
+
+function securityReportItems(report) {
+  const items = [];
+  if (report.emptyPasswords.length) {
+    items.push({
+      tone: "danger",
+      title: `${report.emptyPasswords.length} 个账号缺少密码`,
+      detail: entryNames(report.emptyPasswords),
+    });
+  }
+  if (report.weakPasswords.length) {
+    items.push({
+      tone: "warning",
+      title: `${report.weakPasswords.length} 个账号使用弱密码`,
+      detail: entryNames(report.weakPasswords),
+    });
+  }
+  if (report.duplicatePasswordGroups.length) {
+    items.push({
+      tone: "danger",
+      title: `${report.duplicatePasswordGroups.length} 组重复密码`,
+      detail: report.duplicatePasswordGroups.map((group) => entryNames(group.entries)).join("；"),
+    });
+  }
+  if (report.missingTotp.length) {
+    items.push({
+      tone: "warning",
+      title: `${report.missingTotp.length} 个账号缺少 2FA`,
+      detail: entryNames(report.missingTotp),
+    });
+  }
+  if (report.missingRecovery.length) {
+    items.push({
+      tone: "warning",
+      title: `${report.missingRecovery.length} 个账号缺少恢复码`,
+      detail: entryNames(report.missingRecovery),
+    });
+  }
+  return items;
+}
+
+function entryNames(entries) {
+  return entries.map((entry) => entry.name || entry.login || "未命名账号").join("、");
+}
+
+function analyzeVaultSecurity(vault) {
+  const entries = Array.isArray(vault?.entries) ? vault.entries : [];
+  const emptyPasswords = [];
+  const weakPasswords = [];
+  const missingTotp = [];
+  const missingRecovery = [];
+  const passwordGroups = new Map();
+
+  for (const entry of entries) {
+    const password = String(entry.password || "");
+    if (!password) {
+      emptyPasswords.push(entry);
+    } else {
+      const score = scorePassword(password);
+      if (score.level === "weak") weakPasswords.push(entry);
+      if (!passwordGroups.has(password)) passwordGroups.set(password, []);
+      passwordGroups.get(password).push(entry);
+    }
+
+    if (!String(entry.totpSecret || "").trim()) missingTotp.push(entry);
+    if (!String(entry.recoveryCodes || "").trim()) missingRecovery.push(entry);
+  }
+
+  const duplicatePasswordGroups = Array.from(passwordGroups.values())
+    .filter((group) => group.length > 1)
+    .map((entries) => ({ password: entries[0].password, entries }));
+  const totalIssues =
+    emptyPasswords.length +
+    weakPasswords.length +
+    duplicatePasswordGroups.length +
+    missingTotp.length +
+    missingRecovery.length;
+
+  return {
+    totalEntries: entries.length,
+    totalIssues,
+    emptyPasswords,
+    weakPasswords,
+    duplicatePasswordGroups,
+    missingTotp,
+    missingRecovery,
+  };
 }
 
 function togglePassword() {
@@ -1212,6 +1443,7 @@ async function exportVaultBackup() {
   try {
     const envelope = await encryptVault(state.vault, state.key);
     envelope.remoteRevision = state.remoteRevision;
+    await verifyExportEnvelope(envelope);
     const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -1219,7 +1451,7 @@ async function exportVaultBackup() {
     link.download = `account-vault-${new Date().toISOString().slice(0, 10)}.json`;
     link.click();
     URL.revokeObjectURL(url);
-    showToast("已导出加密备份", { message: link.download, tone: "success" });
+    showToast("已导出并校验备份", { message: link.download, tone: "success" });
   } catch (error) {
     showToast("导出失败", { message: error.message || "无法生成备份文件。", tone: "danger" });
   }
@@ -1246,9 +1478,9 @@ async function importVaultBackup() {
     const salt = base64ToBytes(envelope.kdf.salt);
     const key = await deriveVaultKey(password, salt, envelope.kdf.iterations);
     const vault = normalizeVault(await decryptVault(envelope, key));
-    const entryCount = vault.entries.length;
+    const diff = summarizeImportDiff(state.vault, vault);
     if (
-      !(await confirmDialog(`将导入“${file.name}”中的 ${entryCount} 个账号，并替换当前保险箱内容。继续？`, {
+      !(await confirmDialog(`将导入“${file.name}”：新增 ${diff.added} 个，重名覆盖 ${diff.matched} 个，当前将移除 ${diff.removed} 个。继续？`, {
         title: "导入备份",
         confirmLabel: "继续导入",
         danger: true,
@@ -1267,10 +1499,48 @@ async function importVaultBackup() {
     selectEntry(state.vault.entries[0]?.id || null, { openDetail: false });
     setMobileVaultPanel("list");
     await saveVaultNow(true);
-    showToast("备份已导入", { message: `${entryCount} 个账号`, tone: "success" });
+    showToast("备份已导入", { message: `${diff.incomingTotal} 个账号`, tone: "success" });
   } catch (error) {
     showToast("导入失败", { message: error.message || "无法读取备份文件。", tone: "danger" });
   }
+}
+
+async function verifyExportEnvelope(envelope) {
+  const verified = normalizeVault(await decryptVault(envelope, state.key));
+  if (verified.entries.length !== state.vault.entries.length) {
+    throw new Error("备份校验失败：账号数量不一致。");
+  }
+}
+
+function summarizeImportDiff(currentVault, incomingVault) {
+  const currentEntries = Array.isArray(currentVault?.entries) ? currentVault.entries : [];
+  const incomingEntries = Array.isArray(incomingVault?.entries) ? incomingVault.entries : [];
+  const currentNames = new Set(currentEntries.map(importEntryKey));
+  const incomingNames = new Set(incomingEntries.map(importEntryKey));
+  let matched = 0;
+  let added = 0;
+  let removed = 0;
+
+  for (const key of incomingNames) {
+    if (currentNames.has(key)) matched += 1;
+    else added += 1;
+  }
+
+  for (const key of currentNames) {
+    if (!incomingNames.has(key)) removed += 1;
+  }
+
+  return {
+    currentTotal: currentEntries.length,
+    incomingTotal: incomingEntries.length,
+    added,
+    matched,
+    removed,
+  };
+}
+
+function importEntryKey(entry) {
+  return normalizeEmail(entry.login) || String(entry.name || "").trim().toLowerCase() || entry.id || "";
 }
 
 async function changeMasterPassword() {
@@ -1380,6 +1650,7 @@ async function loadAdminSettings() {
 
     els.registrationOpenToggle.checked = Boolean(data.registrationOpen);
     els.adminSettingsStatus.textContent = data.registrationOpen ? "当前允许新用户注册" : "当前禁止新用户注册";
+    await loadAuditLog();
   } catch (error) {
     els.adminSettingsStatus.textContent = error.message || "管理员设置读取失败";
   }
@@ -1401,6 +1672,7 @@ async function saveAdminSettings() {
 
     els.registrationOpenToggle.checked = Boolean(data.registrationOpen);
     els.adminSettingsStatus.textContent = data.registrationOpen ? "当前允许新用户注册" : "当前禁止新用户注册";
+    await loadAuditLog();
   } catch (error) {
     els.adminSettingsStatus.textContent = error.message || "管理员设置保存失败";
     els.registrationOpenToggle.checked = !els.registrationOpenToggle.checked;
@@ -1422,9 +1694,182 @@ async function createInvite() {
     els.inviteLink.value = inviteUrl.toString();
     await copyText(inviteUrl.toString());
     els.adminSettingsStatus.textContent = "邀请链接已生成并复制";
+    await loadInviteList();
+    await loadAuditLog();
   } catch (error) {
     els.adminSettingsStatus.textContent = error.message || "邀请链接生成失败";
   }
+}
+
+async function loadInviteList() {
+  if (!state.user?.isAdmin) return;
+  try {
+    els.inviteList.textContent = "";
+    const response = await fetch("/api/admin/invites", { credentials: "same-origin" });
+    const data = await readJsonResponse(response);
+    if (!response.ok) throw new Error(data.error || "无法读取邀请列表。");
+    renderInviteList(data.invites || []);
+  } catch (error) {
+    renderAdminListError(els.inviteList, error.message || "邀请列表读取失败");
+  }
+}
+
+function renderInviteList(invites) {
+  els.inviteList.textContent = "";
+  if (!invites.length) {
+    renderAdminListEmpty(els.inviteList, "还没有邀请链接");
+    return;
+  }
+
+  for (const invite of invites) {
+    const item = document.createElement("div");
+    const copy = document.createElement("div");
+    const title = document.createElement("strong");
+    const detail = document.createElement("span");
+    const token = document.createElement("code");
+    const actions = document.createElement("div");
+    const copyButton = document.createElement("button");
+    item.className = "admin-list-item";
+    copy.className = "admin-list-copy";
+    title.textContent = inviteStatusLabel(invite.status);
+    token.textContent = invite.token || "";
+    detail.textContent = inviteDetailText(invite);
+    copy.append(title, detail, token);
+    copyButton.type = "button";
+    copyButton.textContent = "复制";
+    copyButton.addEventListener("click", () => copyInviteLink(invite.token, copyButton));
+    actions.append(copyButton);
+    if (invite.status === "active") {
+      const revokeButton = document.createElement("button");
+      revokeButton.type = "button";
+      revokeButton.className = "danger";
+      revokeButton.textContent = "撤销";
+      revokeButton.addEventListener("click", () => revokeInvite(invite.token));
+      actions.append(revokeButton);
+    }
+    item.append(copy, actions);
+    els.inviteList.append(item);
+  }
+}
+
+async function copyInviteLink(token, button) {
+  if (!token) return;
+  const inviteUrl = new URL(location.href);
+  inviteUrl.hash = "";
+  inviteUrl.searchParams.set("invite", token);
+  await copyText(inviteUrl.toString());
+  flashButtonLabel(button, "已复制");
+  showToast("邀请链接已复制", { tone: "success" });
+}
+
+async function revokeInvite(token) {
+  const confirmed = await confirmDialog("撤销后这个邀请链接不能再用于注册。继续？", {
+    title: "撤销邀请",
+    confirmLabel: "撤销",
+    danger: true,
+  });
+  if (!confirmed) return;
+
+  try {
+    await postJson("/api/admin/invites/revoke", { token });
+    showToast("邀请已撤销", { tone: "success" });
+    await loadInviteList();
+    await loadAuditLog();
+  } catch (error) {
+    showToast("撤销失败", { message: error.message || "无法撤销邀请。", tone: "danger" });
+  }
+}
+
+async function loadAuditLog() {
+  if (!state.user?.isAdmin) return;
+  try {
+    els.auditList.textContent = "";
+    const response = await fetch("/api/admin/audit", { credentials: "same-origin" });
+    const data = await readJsonResponse(response);
+    if (!response.ok) throw new Error(data.error || "无法读取审计日志。");
+    renderAuditLog(data.events || []);
+  } catch (error) {
+    renderAdminListError(els.auditList, error.message || "审计日志读取失败");
+  }
+}
+
+function renderAuditLog(events) {
+  els.auditList.textContent = "";
+  if (!events.length) {
+    renderAdminListEmpty(els.auditList, "还没有审计事件");
+    return;
+  }
+
+  for (const event of events.slice(0, 20)) {
+    const item = document.createElement("div");
+    const title = document.createElement("strong");
+    const detail = document.createElement("span");
+    item.className = "admin-list-item";
+    title.textContent = auditEventLabel(event.type);
+    detail.textContent = `${formatDateTime(event.at)} ${auditDetailText(event.details)}`;
+    item.append(title, detail);
+    els.auditList.append(item);
+  }
+}
+
+function renderAdminListEmpty(container, message) {
+  const item = document.createElement("div");
+  item.className = "admin-list-item";
+  item.textContent = message;
+  container.append(item);
+}
+
+function renderAdminListError(container, message) {
+  container.textContent = "";
+  const item = document.createElement("div");
+  item.className = "admin-list-item";
+  item.textContent = message;
+  container.append(item);
+}
+
+function inviteStatusLabel(status) {
+  return {
+    active: "可用邀请",
+    used: "已使用",
+    revoked: "已撤销",
+    expired: "已过期",
+  }[status] || "邀请";
+}
+
+function inviteDetailText(invite) {
+  if (invite.usedEmail) return `${formatDateTime(invite.usedAt)} 被 ${invite.usedEmail} 使用`;
+  if (invite.revokedAt) return `${formatDateTime(invite.revokedAt)} 已撤销`;
+  if (invite.expiresAt) return `${formatDateTime(invite.expiresAt)} 过期`;
+  return "无过期时间";
+}
+
+function auditEventLabel(type) {
+  return {
+    user_registered: "用户注册",
+    login_succeeded: "登录成功",
+    login_failed: "登录失败",
+    password_changed: "主密码修改",
+    sessions_revoked: "退出所有设备",
+    invite_created: "创建邀请",
+    invite_revoked: "撤销邀请",
+    admin_registration_setting_changed: "注册设置变更",
+  }[type] || type;
+}
+
+function auditDetailText(details = {}) {
+  if (details.usedEmail) return details.usedEmail;
+  if (details.reason) return details.reason;
+  if (details.role) return details.role;
+  if (typeof details.registrationOpen === "boolean") return details.registrationOpen ? "开放注册" : "关闭注册";
+  return "";
+}
+
+function formatDateTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, "0")}:${String(
+    date.getMinutes(),
+  ).padStart(2, "0")}`;
 }
 
 async function readJsonResponse(response) {
@@ -2039,15 +2484,19 @@ function resetSecretVisibility() {
 }
 
 export {
+  analyzeVaultSecurity,
   base32ToBytes,
   bytesToBase64,
   generatePassword,
   generateTotp,
+  getVaultTags,
   isVaultEnvelope,
   makeAuthSecret,
   normalizeEmail,
   normalizePasswordLength,
   normalizePasswordOptions,
+  parseEntryTags,
   parseTotpInput,
   scorePassword,
+  summarizeImportDiff,
 };
