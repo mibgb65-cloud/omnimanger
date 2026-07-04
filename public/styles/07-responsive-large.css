@@ -1,0 +1,280 @@
+﻿
+.detail-tabs {
+  display: inline-flex;
+  width: max-content;
+  max-width: 100%;
+  gap: 4px;
+  overflow-x: auto;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-muted);
+  padding: 3px;
+}
+
+.detail-tabs button {
+  min-height: 34px;
+  flex: 0 0 auto;
+  border-color: transparent;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  padding: 0 12px;
+}
+
+.detail-tabs button[data-active="true"] {
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-xs);
+}
+
+.detail-tabs .icon {
+  width: 15px;
+  height: 15px;
+}
+
+.detail-section {
+  display: grid;
+  gap: 16px;
+}
+
+.detail-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.secret-row {
+  gap: 7px;
+}
+
+.secret-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  gap: 8px;
+}
+
+.secret-control button {
+  min-width: 76px;
+}
+
+.secret-control button .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.password-strength {
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+}
+
+.password-generator {
+  display: grid;
+  grid-template-columns: minmax(112px, 140px) auto auto auto;
+  gap: 8px;
+  align-items: end;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-soft);
+  padding: 10px;
+}
+
+.password-generator label {
+  gap: 5px;
+}
+
+.password-generator input[type="number"] {
+  height: 38px;
+}
+
+.password-generator .inline-option {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  padding: 0 10px;
+}
+
+.password-generator .inline-option input[type="checkbox"] {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: var(--color-surface);
+  padding: 0;
+}
+
+.password-generator .inline-option input[type="checkbox"]:checked {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+}
+
+.password-generator .inline-option input[type="checkbox"]:checked::after {
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 5px;
+  height: 9px;
+  border: solid #ffffff;
+  border-width: 0 2px 2px 0;
+  content: "";
+  transform: rotate(45deg);
+}
+
+.password-generator .inline-option span {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.password-generator button {
+  min-height: 38px;
+  white-space: nowrap;
+}
+
+.password-strength[data-level="strong"] {
+  color: var(--color-accent);
+}
+
+.password-strength[data-level="medium"] {
+  color: var(--color-warning);
+}
+
+.password-strength[data-level="weak"],
+.password-strength[data-level="duplicate"] {
+  color: var(--color-danger);
+}
+
+.totp-panel {
+  display: grid;
+  grid-template-columns: auto minmax(120px, 180px) minmax(120px, 1fr);
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-soft);
+  padding: 12px 14px;
+}
+
+.totp-panel .muted {
+  white-space: nowrap;
+}
+
+.totp-panel strong {
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.timer {
+  height: 8px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-muted);
+}
+
+.timer span {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--color-accent);
+  transition: width 200ms linear;
+}
+
+.bottom-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  border-top: 1px solid var(--color-border-subtle);
+  padding: 14px 18px;
+}
+
+.bottom-bar .button-row {
+  justify-content: flex-end;
+}
+
+.bottom-bar .button-row button .icon,
+.detail-head button .icon,
+.unlock-panel .button-row button .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.app-dialog {
+  width: min(460px, calc(100vw - 32px));
+  max-height: min(90vh, 720px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-md);
+  padding: 0;
+}
+
+.app-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(2px);
+}
+
+.app-dialog[open] {
+  animation: pop-in 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.app-dialog form {
+  display: grid;
+  gap: 18px;
+  max-height: inherit;
+  overflow: auto;
+  padding: 20px;
+}
+
+.dialog-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.dialog-head h2 {
+  font-size: 18px;
+}
+
+.dialog-head p {
+  margin: 5px 0 0;
+  white-space: pre-line;
+}
+
+.dialog-fields {
+  display: grid;
+  gap: 12px;
+}
+
+.dialog-error {
+  min-height: 20px;
+  margin: -4px 0 0;
+  color: var(--color-danger);
+  font-size: 13px;
+}
+
+.dialog-field-hint {
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.dialog-field-hint[data-level="strong"] {
+  color: var(--color-accent);
+}
+

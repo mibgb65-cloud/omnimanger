@@ -1,6 +1,50 @@
-const CACHE_VERSION = "2026-07-04-8";
+const CACHE_VERSION = "2026-07-04-16";
 const CACHE_NAME = `account-secret-vault-shell-${CACHE_VERSION}`;
-const SHELL_ASSETS = ["/", "/index.html", "/styles.css", "/app.js", "/manifest.webmanifest", "/icon.svg"];
+const SHELL_ASSETS = [
+  "/",
+  "/index.html",
+  "/styles.css",
+  "/manifest.webmanifest",
+  "/icon.svg",
+  "/icons.svg",
+  "/app.js",
+  "/app/bootstrap.js",
+  "/app/core.js",
+  "/app/runtime/constants.js",
+  "/app/runtime/state.js",
+  "/app/runtime/elements.js",
+  "/app/runtime/core-bindings.js",
+  "/app/runtime/api-client.js",
+  "/app/runtime/preferences-auth.js",
+  "/app/runtime/vault-navigation.js",
+  "/app/runtime/navigation-lock.js",
+  "/app/runtime/entries-list.js",
+  "/app/runtime/entry-editor.js",
+  "/app/runtime/overview-activity.js",
+  "/app/runtime/security-report.js",
+  "/app/runtime/sync-secrets.js",
+  "/app/runtime/backup-import.js",
+  "/app/runtime/api-admin-settings.js",
+  "/app/runtime/admin-audit-dialog.js",
+  "/app/runtime/storage-crypto-totp.js",
+  "/app/runtime/generators-toast.js",
+  "/app/runtime/dom-controls.js",
+  "/app/runtime/init-events.js",
+  "/app/runtime/start.js",
+  "/styles/01-tokens-base.css",
+  "/styles/02-shell-auth.css",
+  "/styles/03-vault-list.css",
+  "/styles/04-overview.css",
+  "/styles/05-settings-admin.css",
+  "/styles/06-dialogs.css",
+  "/styles/07-responsive-large.css",
+  "/styles/08-responsive-small.css",
+  "/partials/01-shell-overview.html",
+  "/partials/02-vault.html",
+  "/partials/03-security-backup.html",
+  "/partials/04-settings.html",
+  "/partials/05-dialogs.html",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

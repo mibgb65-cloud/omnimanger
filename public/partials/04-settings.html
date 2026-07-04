@@ -1,0 +1,133 @@
+﻿<section id="settingsView" class="settings-view app-page hidden">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">Vault settings</p>
+            <h2>设置</h2>
+          </div>
+          <span class="muted">保留偏好、账号安全和管理员配置。</span>
+        </div>
+
+        <div id="settingsTabs" class="settings-tabs" role="tablist" aria-label="设置分类">
+          <button type="button" data-settings-tab="security" data-active="true" role="tab" aria-selected="true">
+            <svg class="icon"><use href="/icons.svg#icon-lock"></use></svg>
+            <span>偏好</span>
+          </button>
+          <button
+            id="adminSettingsTab"
+            class="hidden"
+            type="button"
+            data-settings-tab="admin"
+            data-active="false"
+            role="tab"
+            aria-selected="false"
+          >
+            <svg class="icon"><use href="/icons.svg#icon-settings"></use></svg>
+            <span>管理员</span>
+          </button>
+        </div>
+
+        <div class="settings-grid">
+          <section class="panel settings-panel" data-settings-section="security">
+            <div class="settings-panel-head">
+              <span class="section-icon">
+                <svg class="icon"><use href="/icons.svg#icon-clock"></use></svg>
+              </span>
+              <div>
+                <h3>安全偏好</h3>
+                <p class="muted">控制本机解锁和缓存行为。</p>
+              </div>
+            </div>
+            <div class="settings-list">
+              <label class="setting-row">
+                <span>
+                  <strong>自动锁定</strong>
+                  <small>离开或空闲后自动锁定保险箱。</small>
+                </span>
+                <select id="autoLockSelect">
+                  <option value="1">1 分钟</option>
+                  <option value="5">5 分钟</option>
+                  <option value="15">15 分钟</option>
+                  <option value="0">关闭</option>
+                </select>
+              </label>
+              <label class="setting-row">
+                <span>
+                  <strong>本地加密缓存</strong>
+                  <small id="localCacheDetail">解锁后会显示本机加密副本状态。</small>
+                </span>
+                <input id="localCacheToggle" type="checkbox">
+              </label>
+            </div>
+          </section>
+
+          <section class="panel settings-panel" data-settings-section="security">
+            <div class="settings-panel-head">
+              <span class="section-icon">
+                <svg class="icon"><use href="/icons.svg#icon-key"></use></svg>
+              </span>
+              <div>
+                <h3>账号安全</h3>
+                <p class="muted">修改主密码会重新加密整个保险箱。</p>
+              </div>
+            </div>
+            <div class="settings-actions">
+              <button id="changePasswordButton" type="button">
+                <svg class="icon"><use href="/icons.svg#icon-key"></use></svg>
+                <span>修改主密码</span>
+              </button>
+              <button id="logoutAllButton" type="button" class="danger">
+                <svg class="icon"><use href="/icons.svg#icon-log-out"></use></svg>
+                <span>退出所有设备</span>
+              </button>
+            </div>
+          </section>
+
+          <section id="adminPanel" class="panel settings-panel hidden" data-settings-section="admin">
+            <div class="settings-panel-head">
+              <span class="section-icon">
+                <svg class="icon"><use href="/icons.svg#icon-settings"></use></svg>
+              </span>
+              <div>
+                <h3>管理员设置</h3>
+                <p id="adminSettingsStatus" class="muted" role="status" aria-live="polite">注册入口默认关闭</p>
+              </div>
+            </div>
+            <div class="settings-list">
+              <label class="setting-row">
+                <span>
+                  <strong>开放新用户注册</strong>
+                  <small>关闭时只能通过一次性邀请链接注册。</small>
+                </span>
+                <input id="registrationOpenToggle" type="checkbox">
+              </label>
+              <div class="invite-controls">
+                <button id="createInviteButton" type="button">
+                  <svg class="icon"><use href="/icons.svg#icon-user-plus"></use></svg>
+                  <span>生成邀请</span>
+                </button>
+                <input id="inviteLink" type="text" readonly aria-label="邀请链接">
+              </div>
+              <div class="admin-subsection">
+                <div class="admin-subsection-head">
+                  <strong>邀请链接</strong>
+                  <button id="refreshInvitesButton" type="button">
+                    <svg class="icon"><use href="/icons.svg#icon-refresh"></use></svg>
+                    <span>刷新</span>
+                  </button>
+                </div>
+                <div id="inviteList" class="admin-list"></div>
+              </div>
+              <div class="admin-subsection">
+                <div class="admin-subsection-head">
+                  <strong>审计日志</strong>
+                  <button id="refreshAuditButton" type="button">
+                    <svg class="icon"><use href="/icons.svg#icon-refresh"></use></svg>
+                    <span>刷新</span>
+                  </button>
+                </div>
+                <div id="auditList" class="admin-list"></div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>

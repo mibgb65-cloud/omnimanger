@@ -1,0 +1,206 @@
+﻿<section id="vaultView" class="vault-grid app-page hidden">
+        <aside class="list-panel panel">
+          <div class="toolbar">
+            <label class="search">
+              <span class="label-text"><svg class="icon"><use href="/icons.svg#icon-search"></use></svg>搜索</span>
+              <input id="searchInput" type="search" autocomplete="off">
+            </label>
+            <button id="addEntryButton" type="button" class="icon-button add-button" aria-label="新增账号" title="新增账号">
+              <svg class="icon"><use href="/icons.svg#icon-plus"></use></svg>
+              <span class="sr-only">新增账号</span>
+            </button>
+          </div>
+          <div class="list-options">
+            <label class="sort-option">
+              <span class="label-text"><svg class="icon"><use href="/icons.svg#icon-list"></use></svg>排序</span>
+              <select id="entrySortSelect">
+                <option value="updated">最近更新</option>
+                <option value="risk">风险优先</option>
+                <option value="name">名称</option>
+              </select>
+            </label>
+            <label class="risk-filter-toggle">
+              <span class="label-text"><svg class="icon"><use href="/icons.svg#icon-alert-circle"></use></svg>只看风险账号</span>
+              <span id="riskFilterCount" class="risk-count" data-state="ok">0 个</span>
+              <input id="riskOnlyToggle" type="checkbox">
+            </label>
+            <div id="securityFilterNotice" class="security-filter-notice hidden">
+              <span>筛选：<strong id="securityFilterLabel">安全检查</strong></span>
+              <button id="clearSecurityFilterButton" type="button">
+                <svg class="icon"><use href="/icons.svg#icon-refresh"></use></svg>
+                <span>清除</span>
+              </button>
+            </div>
+          </div>
+          <div id="tagFilter" class="tag-filter" aria-label="标签筛选"></div>
+          <div id="entryList" class="entry-list" role="listbox" aria-label="账号列表"></div>
+        </aside>
+
+        <section class="detail-panel panel" aria-labelledby="entryDetailTitle">
+          <h2 id="entryDetailTitle" class="sr-only">账号详情</h2>
+          <div class="mobile-detail-bar">
+            <button id="backToListButton" type="button">
+              <svg class="icon"><use href="/icons.svg#icon-arrow-left"></use></svg>
+              <span>账号列表</span>
+            </button>
+          </div>
+
+          <div id="detailEmptyState" class="detail-empty hidden">
+            <span class="section-icon">
+              <svg class="icon"><use href="/icons.svg#icon-list"></use></svg>
+            </span>
+            <strong>选择一个账号</strong>
+            <span>从左侧列表选择账号，或新建一条需要保存的信息。</span>
+            <button id="emptyAddButton" type="button" class="primary">
+              <svg class="icon"><use href="/icons.svg#icon-plus"></use></svg>
+              <span>新增账号</span>
+            </button>
+          </div>
+
+          <form id="entryForm" autocomplete="off">
+            <div id="detailTabs" class="detail-tabs" role="tablist" aria-label="账号详情分区">
+              <button type="button" data-detail-tab="identity" data-active="true" role="tab" aria-selected="true">
+                <svg class="icon"><use href="/icons.svg#icon-shield"></use></svg>
+                <span>基础</span>
+              </button>
+              <button type="button" data-detail-tab="secret" data-active="false" role="tab" aria-selected="false">
+                <svg class="icon"><use href="/icons.svg#icon-key"></use></svg>
+                <span>密钥</span>
+              </button>
+              <button type="button" data-detail-tab="recovery" data-active="false" role="tab" aria-selected="false">
+                <svg class="icon"><use href="/icons.svg#icon-file-key"></use></svg>
+                <span>恢复</span>
+              </button>
+              <button type="button" data-detail-tab="notes" data-active="false" role="tab" aria-selected="false">
+                <svg class="icon"><use href="/icons.svg#icon-note"></use></svg>
+                <span>备注</span>
+              </button>
+            </div>
+
+            <div class="detail-section" data-detail-section="identity">
+              <div class="detail-head">
+                <label>
+                  <span class="label-text"><svg class="icon"><use href="/icons.svg#icon-shield"></use></svg>名称</span>
+                  <input id="entryName" name="name" required placeholder="Google main">
+                </label>
+                <button id="deleteEntryButton" type="button" class="danger">
+                  <svg class="icon"><use href="/icons.svg#icon-trash"></use></svg>
+                  <span>删除</span>
+                </button>
+              </div>
+
+              <div class="field-grid">
+                <label>
+                  <span class="label-text"><svg class="icon"><use href="/icons.svg#icon-mail"></use></svg>登录邮箱</span>
+                  <input id="entryLogin" name="login" inputmode="email" autocomplete="off">
+                </label>
+
+                <label>
+                  <span class="label-text"><svg class="icon"><use href="/icons.svg#icon-mail"></use></svg>备用邮箱</span>
+                  <input id="entryBackupEmail" name="backupEmail" inputmode="email" autocomplete="off">
+                </label>
+
+                <label>
+                  <span class="label-text"><svg class="icon"><use href="/icons.svg#icon-phone"></use></svg>备用手机</span>
+                  <input id="entryBackupPhone" name="backupPhone" inputmode="tel" autocomplete="off">
+                </label>
+
+                <label>
+                  <span class="label-text"><svg class="icon"><use href="/icons.svg#icon-tags"></use></svg>标签</span>
+                  <input id="entryTags" name="tags" autocomplete="off" placeholder="work, personal">
+                </label>
+              </div>
+            </div>
+
+            <div class="detail-section hidden" data-detail-section="secret">
+              <label class="secret-row">
+                <span class="label-text"><svg class="icon"><use href="/icons.svg#icon-key"></use></svg>密码</span>
+                <div class="secret-control">
+                  <input id="entryPassword" name="password" type="password" autocomplete="new-password">
+                  <button id="generatePasswordButton" type="button">
+                    <svg class="icon"><use href="/icons.svg#icon-key"></use></svg>
+                    <span>生成</span>
+                  </button>
+                  <button id="togglePasswordButton" type="button" aria-label="显示或隐藏密码">
+                    <svg class="icon"><use href="/icons.svg#icon-eye"></use></svg>
+                    <span>显示</span>
+                  </button>
+                  <button data-copy="entryPassword" type="button">
+                    <svg class="icon"><use href="/icons.svg#icon-copy"></use></svg>
+                    <span>复制</span>
+                  </button>
+                </div>
+                <span id="passwordStrength" class="password-strength" data-level="empty">未填写密码</span>
+                <div class="password-generator" aria-label="密码生成选项">
+                  <label>
+                    <span>长度</span>
+                    <input id="passwordLengthInput" type="number" min="12" max="64" value="20" inputmode="numeric">
+                  </label>
+                  <label class="inline-option">
+                    <input id="passwordSymbolsToggle" type="checkbox" checked>
+                    <span>符号</span>
+                  </label>
+                  <label class="inline-option">
+                    <input id="passwordReadableToggle" type="checkbox" checked>
+                    <span>易读</span>
+                  </label>
+                  <button id="generateCopyPasswordButton" type="button">
+                    <svg class="icon"><use href="/icons.svg#icon-refresh"></use></svg>
+                    <span>生成并复制</span>
+                  </button>
+                </div>
+              </label>
+
+              <label class="secret-row">
+                <span class="label-text"><svg class="icon"><use href="/icons.svg#icon-key"></use></svg>2FA TOTP 种子</span>
+                <div class="secret-control">
+                  <input id="entryTotpSecret" name="totpSecret" type="password" autocomplete="off" spellcheck="false">
+                  <button id="toggleTotpButton" type="button" aria-label="显示或隐藏 2FA 种子">
+                    <svg class="icon"><use href="/icons.svg#icon-eye"></use></svg>
+                    <span>显示</span>
+                  </button>
+                  <button data-copy="entryTotpSecret" type="button">
+                    <svg class="icon"><use href="/icons.svg#icon-copy"></use></svg>
+                    <span>复制</span>
+                  </button>
+                </div>
+              </label>
+
+              <div class="totp-panel">
+                <span class="muted label-text"><svg class="icon"><use href="/icons.svg#icon-clock"></use></svg>当前验证码</span>
+                <strong id="totpCode">------</strong>
+                <div class="timer">
+                  <span id="totpTimerBar"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="detail-section hidden" data-detail-section="recovery">
+              <label>
+                <span class="label-text"><svg class="icon"><use href="/icons.svg#icon-file-key"></use></svg>恢复码</span>
+                <textarea id="entryRecoveryCodes" name="recoveryCodes" rows="8" spellcheck="false"></textarea>
+              </label>
+            </div>
+
+            <div class="detail-section hidden" data-detail-section="notes">
+              <label>
+                <span class="label-text"><svg class="icon"><use href="/icons.svg#icon-note"></use></svg>备注</span>
+                <textarea id="entryNotes" name="notes" rows="10"></textarea>
+              </label>
+            </div>
+          </form>
+
+          <div id="detailBottomBar" class="bottom-bar">
+            <div class="button-row">
+              <button id="saveButton" type="button" class="primary">
+                <svg class="icon"><use href="/icons.svg#icon-save"></use></svg>
+                <span>保存</span>
+              </button>
+              <button id="lockButton" type="button">
+                <svg class="icon"><use href="/icons.svg#icon-log-out"></use></svg>
+                <span>退出</span>
+              </button>
+            </div>
+          </div>
+        </section>
+      </section>

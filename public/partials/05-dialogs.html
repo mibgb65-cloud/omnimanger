@@ -1,0 +1,36 @@
+﻿    </main>
+
+    <div id="toastRegion" class="toast-region" aria-live="polite" aria-atomic="false"></div>
+
+    <template id="entryTemplate">
+      <button class="entry-item" type="button">
+        <span class="entry-icon">
+          <svg class="icon"><use href="/icons.svg#icon-key"></use></svg>
+        </span>
+        <span class="entry-copy">
+          <strong></strong>
+          <span class="entry-meta"></span>
+          <span class="entry-badges"></span>
+        </span>
+      </button>
+    </template>
+
+    <dialog id="appDialog" class="app-dialog" aria-labelledby="appDialogTitle" aria-describedby="appDialogMessage">
+      <form id="appDialogForm" novalidate>
+        <div class="dialog-head">
+          <span id="appDialogIcon" class="section-icon">
+            <svg class="icon"><use href="/icons.svg#icon-shield"></use></svg>
+          </span>
+          <div>
+            <h2 id="appDialogTitle">确认操作</h2>
+            <p id="appDialogMessage" class="muted"></p>
+          </div>
+        </div>
+        <div id="appDialogFields" class="dialog-fields"></div>
+        <p id="appDialogError" class="dialog-error" role="alert" aria-live="assertive"></p>
+        <div class="dialog-actions">
+          <button id="appDialogCancel" type="button">取消</button>
+          <button id="appDialogConfirm" type="submit" class="primary">确认</button>
+        </div>
+      </form>
+    </dialog>

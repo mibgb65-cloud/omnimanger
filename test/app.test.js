@@ -9,19 +9,30 @@ if (!globalThis.crypto) {
 const {
   analyzeVaultSecurity,
   base32ToBytes,
+  entryHasRisk,
+  entryMatchesSearch,
+  formatImportConfirmation,
+  formatMasterPasswordStrength,
   generatePassword,
   generateTotp,
   getEntryRiskScore,
+  getRiskEntryCount,
+  getVaultHealth,
+  getVaultOverview,
   getVaultTags,
   isBackupStale,
   isVaultEnvelope,
+  makeAuthSecret,
   mergeImportedVault,
   normalizeEmail,
+  normalizeVault,
   normalizePasswordLength,
   normalizePasswordOptions,
+  parseSearchQuery,
   parseEntryTags,
   parseTotpInput,
   scorePassword,
+  summarizeBackupVerification,
   summarizeImportDiff,
 } = await import("../public/app.js");
 
@@ -71,6 +82,7 @@ test("email normalization and envelope validation are deterministic", () => {
   assert.equal(normalizeEmail("  USER@Example.COM "), "user@example.com");
   assert.equal(
     isVaultEnvelope({
+      schemaVersion: 1,
       version: 1,
       kdf: {
         name: "PBKDF2-SHA256",
@@ -86,6 +98,23 @@ test("email normalization and envelope validation are deterministic", () => {
     true,
   );
   assert.equal(isVaultEnvelope({ version: 1 }), false);
+  assert.equal(
+    isVaultEnvelope({
+      schemaVersion: 99,
+      version: 1,
+      kdf: { name: "PBKDF2-SHA256", iterations: 310000, salt: "AAAAAAAAAAAAAAAAAAAAAA==" },
+      cipher: { name: "AES-GCM", iv: "AAAAAAAAAAAAAAAA", data: "Y2lwaGVy" },
+    }),
+    false,
+  );
+});
+
+test("auth secret derivation and vault normalization are shared runtime contracts", async () => {
+  const authSecret = await makeAuthSecret("  USER@Example.COM ", "correct horse battery");
+  assert.equal(authSecret, await makeAuthSecret("user@example.com", "correct horse battery"));
+  assert.notEqual(authSecret, await makeAuthSecret("user@example.com", "different horse battery"));
+  assert.match(authSecret, /^[A-Za-z0-9+/]+={0,2}$/);
+  assert.throws(() => normalizeVault(null), /保险箱内容无效/);
 });
 
 test("tag and security analysis helpers summarize vault issues", () => {
@@ -109,6 +138,30 @@ test("tag and security analysis helpers summarize vault issues", () => {
   assert.equal(report.missingRecovery.length, 2);
 });
 
+test("advanced search filters by tags fields risk and missing secrets", () => {
+  const vault = {
+    entries: [
+      {
+        id: "1",
+        name: "Google Main",
+        login: "main@gmail.com",
+        tags: "work google",
+        password: "Stronger-Password-2026!",
+        totpSecret: "JBSWY3DPEHPK3PXP",
+        recoveryCodes: "123",
+      },
+      { id: "2", name: "Old Mail", login: "old@example.com", tags: "personal", password: "abc", totpSecret: "", recoveryCodes: "" },
+    ],
+  };
+
+  const parsed = parseSearchQuery("tag:work login:gmail has:2fa google");
+  assert.deepEqual(parsed.tags, ["work"]);
+  assert.equal(entryMatchesSearch(vault.entries[0], parsed, vault), true);
+  assert.equal(entryMatchesSearch(vault.entries[1], parsed, vault), false);
+  assert.equal(entryMatchesSearch(vault.entries[1], "risk:true missing:recovery", vault), true);
+  assert.equal(entryMatchesSearch(vault.entries[0], "risk:false has:recovery", vault), true);
+});
+
 test("import diff summarizes added matched and removed accounts", () => {
   const current = {
     entries: [
@@ -130,6 +183,41 @@ test("import diff summarizes added matched and removed accounts", () => {
     matched: 1,
     removed: 1,
   });
+});
+
+test("backup verification summary reports diff and timestamps", () => {
+  const current = {
+    entries: [
+      { id: "1", name: "Main", login: "main@example.com" },
+      { id: "2", name: "Old", login: "" },
+    ],
+  };
+  const backup = {
+    updatedAt: "2026-07-02T11:00:00.000Z",
+    entries: [
+      { id: "3", name: "Main copy", login: "main@example.com" },
+      { id: "4", name: "Backup only", login: "backup@example.com" },
+    ],
+  };
+
+  assert.deepEqual(summarizeBackupVerification(current, backup), {
+    currentTotal: 2,
+    incomingTotal: 2,
+    added: 1,
+    matched: 1,
+    removed: 1,
+    backupUpdatedAt: "2026-07-02T11:00:00.000Z",
+    addedEntries: ["Backup only"],
+    matchedEntries: ["Main copy"],
+    removedEntries: ["Old"],
+  });
+});
+
+test("import confirmation text makes merge and replace consequences explicit", () => {
+  const diff = { currentTotal: 3, incomingTotal: 2, added: 1, matched: 1, removed: 2 };
+
+  assert.match(formatImportConfirmation("backup.json", diff, "merge"), /当前独有 2 个会保留/);
+  assert.match(formatImportConfirmation("backup.json", diff, "replace"), /当前 3 个账号会被替换/);
 });
 
 test("merge import keeps current unmatched accounts", () => {
@@ -173,6 +261,41 @@ test("entry risk score prioritizes missing and duplicated secrets", () => {
 
   assert.ok(getEntryRiskScore(vault.entries[1], vault) > getEntryRiskScore(vault.entries[0], vault));
   assert.ok(getEntryRiskScore(vault.entries[2], vault) > getEntryRiskScore(vault.entries[0], vault));
+  assert.equal(entryHasRisk(vault.entries[0], vault), false);
+  assert.equal(entryHasRisk(vault.entries[1], vault), true);
+  assert.equal(getRiskEntryCount(vault), 3);
+});
+
+test("vault overview summarizes counts backup and local status", () => {
+  const vault = {
+    entries: [
+      {
+        id: "safe",
+        name: "Safe",
+        password: "Stronger-Password-2026!",
+        totpSecret: "JBSWY3DPEHPK3PXP",
+        recoveryCodes: "123456",
+      },
+      { id: "risky", name: "Risky", password: "", totpSecret: "", recoveryCodes: "" },
+    ],
+  };
+
+  const overview = getVaultOverview(vault, new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), true, 15);
+  assert.equal(overview.totalEntries, 2);
+  assert.equal(overview.riskEntries, 1);
+  assert.equal(overview.backupStale, false);
+  assert.equal(overview.localCacheLabel, "已关闭");
+  assert.equal(overview.autoLockLabel, "15 分钟");
+  assert.equal(overview.health.score < 100, true);
+
+  const health = getVaultHealth(vault, "");
+  assert.equal(health.reasons.some((reason) => reason.includes("备份")), true);
+  assert.equal(["warning", "danger"].includes(health.level), true);
+});
+
+test("master password strength copy gives actionable feedback", () => {
+  assert.match(formatMasterPasswordStrength("short"), /弱密码/);
+  assert.match(formatMasterPasswordStrength("LongerPassphrase2026!"), /强密码/);
 });
 
 test("backup stale helper flags missing or old exports", () => {

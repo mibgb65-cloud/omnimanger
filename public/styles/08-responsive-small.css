@@ -1,0 +1,365 @@
+﻿.dialog-field-hint[data-level="medium"] {
+  color: var(--color-warning);
+}
+
+.dialog-field-hint[data-level="weak"] {
+  color: var(--color-danger);
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.app-dialog[data-danger="true"] .section-icon {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.app-dialog[data-danger="true"] button.primary {
+  background: var(--color-danger);
+  color: #ffffff;
+}
+
+html[data-theme="dark"] .app-dialog {
+  border-color: #4a4a4a;
+  background: #2f2f2f;
+}
+
+html[data-theme="dark"] .app-dialog[data-danger="true"] button.primary {
+  background: #ff6b5f;
+  color: #0d0d0d;
+}
+
+.toast-region {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 40;
+  display: grid;
+  width: min(360px, calc(100vw - 32px));
+  gap: 10px;
+  pointer-events: none;
+}
+
+.toast {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-sm);
+  font-size: 14px;
+  line-height: 1.45;
+  padding: 12px 13px;
+  animation: slide-up 180ms ease-out;
+}
+
+.toast .section-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+}
+
+.toast strong,
+.toast span {
+  display: block;
+  min-width: 0;
+}
+
+.toast strong {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.toast span {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.toast[data-tone="success"] .section-icon {
+  border-color: var(--color-accent-border);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.toast[data-tone="warning"] .section-icon {
+  border-color: var(--color-warning);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.toast[data-tone="danger"] .section-icon {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.hidden {
+  display: none !important;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98) translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.theme-transition,
+.theme-transition * {
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 860px) {
+  .shell {
+    width: min(100vw - 20px, 720px);
+    padding: 18px 0;
+  }
+
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .app-nav,
+  .status-strip {
+    width: 100%;
+  }
+
+  .app-nav {
+    overflow-x: auto;
+    justify-content: flex-start;
+    scrollbar-width: none;
+  }
+
+  .app-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .status-strip {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .status-pill {
+    max-width: none;
+  }
+
+  .theme-toggle {
+    justify-self: end;
+  }
+
+  .app-nav button {
+    flex: 0 0 auto;
+  }
+
+  .unlock-grid,
+  .vault-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .vault-grid {
+    min-height: auto;
+  }
+
+  .list-panel {
+    max-height: none;
+    min-height: calc(100vh - 236px);
+  }
+
+  .vault-grid[data-mobile-panel="list"] .detail-panel {
+    display: none;
+  }
+
+  .vault-grid[data-mobile-panel="detail"] .list-panel {
+    display: none;
+  }
+
+  .mobile-detail-bar {
+    display: flex;
+  }
+
+  .detail-empty {
+    min-height: calc(100vh - 260px);
+  }
+
+  .field-grid,
+  .detail-head,
+  .overview-hero,
+  .overview-grid,
+  .overview-metrics,
+  .backup-steps,
+  .settings-grid,
+  .page-heading,
+  .settings-heading,
+  .setting-row,
+  .totp-panel,
+  .bottom-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .overview-actions {
+    justify-content: stretch;
+  }
+
+  .overview-actions button {
+    flex: 1 1 150px;
+  }
+
+  .secret-control {
+    grid-template-columns: 1fr;
+  }
+
+  .password-generator {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .security-filter-notice {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .security-filter-notice span {
+    white-space: normal;
+  }
+
+  .totp-panel strong {
+    font-size: 24px;
+  }
+
+  .settings-heading {
+    align-items: start;
+    display: grid;
+  }
+
+  .page-heading {
+    align-items: start;
+    display: grid;
+  }
+
+  .settings-tabs {
+    width: 100%;
+  }
+
+  .detail-tabs {
+    width: 100%;
+  }
+
+  .settings-tabs button {
+    flex: 1 1 0;
+  }
+
+  .detail-tabs button {
+    flex: 1 1 0;
+  }
+
+  .settings-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+
+  .invite-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .bottom-bar {
+    align-items: stretch;
+    display: grid;
+  }
+
+  .button-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
+  }
+
+  .dialog-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .unlock-panel .button-row {
+    grid-template-columns: 1fr;
+  }
+
+  .toast-region {
+    right: 10px;
+    bottom: 10px;
+    width: calc(100vw - 20px);
+  }
+}
+
+@media (max-width: 520px) {
+  h1 {
+    font-size: 26px;
+  }
+
+  .button-row {
+    grid-template-columns: 1fr;
+  }
+
+  button {
+    width: 100%;
+  }
+
+  .app-nav button,
+  .theme-toggle {
+    width: auto;
+  }
+
+  .risk-filter-toggle {
+    grid-template-columns: 1fr auto;
+  }
+
+  .risk-filter-toggle .risk-count {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}

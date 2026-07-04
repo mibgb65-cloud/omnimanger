@@ -1,139 +1,16 @@
 import assert from "node:assert/strict";
-import { webcrypto } from "node:crypto";
 import test from "node:test";
-
-if (!globalThis.crypto) {
-  Object.defineProperty(globalThis, "crypto", { value: webcrypto });
-}
-
-const worker = (await import("../src/index.js")).default;
-const { makeAuthSecret } = await import("../public/app.js");
-
-class MemoryKV {
-  constructor() {
-    this.values = new Map();
-    this.metadata = new Map();
-  }
-
-  async get(key) {
-    return this.values.get(key) ?? null;
-  }
-
-  async getWithMetadata(key) {
-    return {
-      value: this.values.get(key) ?? null,
-      metadata: this.metadata.get(key) ?? null,
-    };
-  }
-
-  async put(key, value, options = {}) {
-    this.values.set(key, value);
-    this.metadata.set(key, options.metadata || null);
-  }
-
-  async delete(key) {
-    this.values.delete(key);
-    this.metadata.delete(key);
-  }
-}
-
-function makeEnv() {
-  return {
-    VAULT: new MemoryKV(),
-    SESSION_SECRET: "test-session-secret-that-is-long-enough",
-    ADMIN_EMAIL: "admin@example.com",
-    ASSETS: {
-      fetch: async () => new Response("ok"),
-    },
-  };
-}
-
-function jsonRequest(path, body, { cookie = "", method = "POST" } = {}) {
-  const headers = { "Content-Type": "application/json" };
-  if (cookie) headers.Cookie = cookie;
-  return new Request(`https://vault.test${path}`, {
-    method,
-    headers,
-    body: JSON.stringify(body),
-  });
-}
-
-async function register(env, email, password, extra = {}) {
-  const authSecret = await makeAuthSecret(email, password);
-  const response = await worker.fetch(jsonRequest("/api/auth/register", { email, authSecret, ...extra }), env);
-  return response;
-}
-
-function sessionCookie(response) {
-  return response.headers.get("set-cookie").split(";")[0];
-}
-
-function envelope(data = "Y2lwaGVydGV4dA==") {
-  return {
-    version: 1,
-    kdf: {
-      name: "PBKDF2-SHA256",
-      iterations: 310000,
-      salt: "AAAAAAAAAAAAAAAAAAAAAA==",
-    },
-    cipher: {
-      name: "AES-GCM",
-      iv: "AAAAAAAAAAAAAAAA",
-      data,
-    },
-  };
-}
-
-async function saveVault(env, cookie, body = {}) {
-  const response = await worker.fetch(
-    jsonRequest(
-      "/api/vault",
-      {
-        envelope: envelope(body.data),
-        baseRevision: body.baseRevision ?? null,
-      },
-      { cookie, method: "PUT" },
-    ),
-    env,
-  );
-  return response;
-}
-
-async function seedV2User(env, email, password) {
-  const normalizedEmail = email.toLowerCase();
-  const authSecret = await makeAuthSecret(normalizedEmail, password);
-  const authSecretBytes = Uint8Array.from(Buffer.from(authSecret, "base64"));
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const material = await crypto.subtle.importKey("raw", authSecretBytes, "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits(
-    {
-      name: "PBKDF2",
-      salt,
-      iterations: 120000,
-      hash: "SHA-256",
-    },
-    material,
-    256,
-  );
-  const user = {
-    id: crypto.randomUUID(),
-    email: normalizedEmail,
-    role: "admin",
-    auth: {
-      version: 2,
-      name: "PBKDF2-SHA256",
-      iterations: 120000,
-      salt: Buffer.from(salt).toString("base64"),
-      hash: Buffer.from(bits).toString("base64"),
-    },
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-
-  await env.VAULT.put(`user:${user.id}`, JSON.stringify(user));
-  await env.VAULT.put(`user-email:${normalizedEmail}`, user.id);
-  return user;
-}
+import {
+  envelope,
+  jsonRequest,
+  makeAuthSecret,
+  makeEnv,
+  register,
+  saveVault,
+  seedV2User,
+  sessionCookie,
+  worker,
+} from "./helpers/worker-helpers.js";
 
 test("admin can register while public registration is closed", async () => {
   const env = makeEnv();
@@ -156,6 +33,26 @@ test("admin can register while public registration is closed", async () => {
   assert.equal(storedUser.auth.version, 3);
   assert.equal(storedUser.auth.name, "HMAC-SHA256");
   assert.equal(storedUser.auth.iterations, undefined);
+});
+
+test("api configuration validation reports missing or weak environment settings", async () => {
+  const missingKv = makeEnv();
+  delete missingKv.VAULT;
+  const missingKvResponse = await worker.fetch(new Request("https://vault.test/api/auth/me"), missingKv);
+  assert.equal(missingKvResponse.status, 500);
+  assert.match((await missingKvResponse.json()).error, /VAULT/);
+
+  const missingSecret = makeEnv();
+  delete missingSecret.SESSION_SECRET;
+  const missingSecretResponse = await worker.fetch(new Request("https://vault.test/api/auth/me"), missingSecret);
+  assert.equal(missingSecretResponse.status, 500);
+  assert.match((await missingSecretResponse.json()).error, /SESSION_SECRET/);
+
+  const weakSecret = makeEnv();
+  weakSecret.SESSION_SECRET = "short";
+  const weakSecretResponse = await worker.fetch(new Request("https://vault.test/api/auth/me"), weakSecret);
+  assert.equal(weakSecretResponse.status, 500);
+  assert.match((await weakSecretResponse.json()).error, /32 characters/);
 });
 
 test("admin invite allows one closed-registration signup", async () => {
@@ -232,6 +129,7 @@ test("admin can list revoke invites and inspect audit events", async () => {
   const auditData = await audit.json();
   assert.ok(auditData.events.some((event) => event.type === "invite_created"));
   assert.ok(auditData.events.some((event) => event.type === "invite_revoked"));
+  assert.equal(auditData.events[0].schemaVersion, 1);
 });
 
 test("vault PUT rejects stale revisions", async () => {

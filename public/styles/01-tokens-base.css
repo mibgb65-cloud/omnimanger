@@ -1,0 +1,280 @@
+﻿:root,
+[data-theme="light"],
+body[data-theme="light"] {
+  color-scheme: light;
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Noto Sans SC",
+    "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+    monospace;
+
+  --color-bg: #ffffff;
+  --color-bg-subtle: #fafafa;
+  --color-bg-muted: #f4f4f2;
+  --color-surface: #ffffff;
+  --color-surface-soft: #f7f7f5;
+  --color-surface-muted: #eeeeeb;
+  --color-surface-hover: #ececea;
+  --color-surface-active: #e6e6e3;
+  --color-border-subtle: #ececec;
+  --color-border: #dedede;
+  --color-border-strong: #c9c9c9;
+  --color-text: #0d0d0d;
+  --color-text-secondary: #4f4f4f;
+  --color-text-tertiary: #777777;
+  --color-text-disabled: #a3a3a3;
+  --color-text-inverse: #ffffff;
+  --color-accent: #10a37f;
+  --color-accent-hover: #0d8f70;
+  --color-accent-soft: #e7f6f1;
+  --color-accent-border: #b9e5d8;
+  --color-warning: #b7791f;
+  --color-warning-soft: #fff6df;
+  --color-danger: #d92d20;
+  --color-danger-soft: #fff0ee;
+  --color-focus: rgba(16, 163, 127, 0.28);
+
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-pill: 999px;
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="dark"],
+body[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #212121;
+  --color-bg-subtle: #252525;
+  --color-bg-muted: #2b2b2b;
+  --color-surface: #2f2f2f;
+  --color-surface-soft: #333333;
+  --color-surface-muted: #3a3a3a;
+  --color-surface-hover: #424242;
+  --color-surface-active: #4a4a4a;
+  --color-border-subtle: #3a3a3a;
+  --color-border: #4a4a4a;
+  --color-border-strong: #5c5c5c;
+  --color-text: #f4f4f4;
+  --color-text-secondary: #c7c7c7;
+  --color-text-tertiary: #9a9a9a;
+  --color-text-disabled: #6f6f6f;
+  --color-text-inverse: #0d0d0d;
+  --color-accent: #19c37d;
+  --color-accent-hover: #25d694;
+  --color-accent-soft: rgba(25, 195, 125, 0.13);
+  --color-accent-border: rgba(25, 195, 125, 0.32);
+  --color-warning: #f6c85f;
+  --color-warning-soft: rgba(246, 200, 95, 0.13);
+  --color-danger: #ff6b5f;
+  --color-danger-soft: rgba(255, 107, 95, 0.13);
+  --color-focus: rgba(25, 195, 125, 0.32);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+html[data-theme="light"] body {
+  background: #ffffff;
+  color: #0d0d0d;
+}
+
+html[data-theme="dark"] body {
+  background: #212121;
+  color: #f4f4f4;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.icon-sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.icon-lg {
+  width: 24px;
+  height: 24px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.skip-link {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 50;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 600;
+  opacity: 0;
+  padding: 9px 12px;
+  text-decoration: none;
+  transform: translateY(-12px);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+  pointer-events: none;
+}
+
+.skip-link:focus {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  font-weight: 500;
+  padding: 0 16px;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease,
+    transform 120ms ease;
+}
+
+button:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-hover);
+}
+
+button:active {
+  transform: scale(0.985);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+button.primary {
+  border-color: transparent;
+  background: var(--color-text);
+  color: var(--color-text-inverse);
+  font-weight: 600;
+}
+
+button.primary:hover {
+  opacity: 0.88;
+}
+
+button.danger {
+  border-color: transparent;
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.theme-toggle {
+  min-width: 58px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.theme-toggle:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.theme-toggle .icon {
+  width: 15px;
+  height: 15px;
+}
+
+input,
+textarea,
+select {
+  appearance: none;
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 14px;
+  outline: none;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+input,
+select {
+  height: 42px;
+  padding: 0 14px;
+}
+
+textarea {
+  min-height: 112px;
+  padding: 12px 14px;
+  resize: vertical;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+input:hover,
+textarea:hover,
+select:hover {
+  border-color: var(--color-border-strong);
+}

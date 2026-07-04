@@ -1,0 +1,233 @@
+﻿    <a class="skip-link" href="#mainContent">跳到主要内容</a>
+    <main id="mainContent" class="shell" tabindex="-1">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-icon">
+            <svg class="icon icon-lg"><use href="/icons.svg#icon-shield"></use></svg>
+          </span>
+          <div>
+            <p class="eyebrow">Zero-knowledge vault</p>
+            <h1>账号保险箱</h1>
+          </div>
+        </div>
+        <nav id="appNav" class="app-nav hidden" aria-label="主导航">
+          <button id="overviewNavButton" type="button" data-app-page="overview" data-active="true">
+            <svg class="icon"><use href="/icons.svg#icon-home"></use></svg>
+            <span>总览</span>
+          </button>
+          <button id="vaultNavButton" type="button" data-app-page="vault" data-active="false">
+            <svg class="icon"><use href="/icons.svg#icon-key"></use></svg>
+            <span>保险箱</span>
+          </button>
+          <button id="securityNavButton" type="button" data-app-page="security" data-active="false">
+            <svg class="icon"><use href="/icons.svg#icon-clipboard-check"></use></svg>
+            <span>安全中心</span>
+          </button>
+          <button id="backupNavButton" type="button" data-app-page="backup" data-active="false">
+            <svg class="icon"><use href="/icons.svg#icon-cloud-download"></use></svg>
+            <span>备份</span>
+          </button>
+          <button id="settingsNavButton" type="button" data-app-page="settings" data-active="false">
+            <svg class="icon"><use href="/icons.svg#icon-settings"></use></svg>
+            <span>设置</span>
+          </button>
+        </nav>
+        <div class="status-strip">
+          <span id="lockStatus" class="status-pill">
+            <svg class="icon"><use href="/icons.svg#icon-lock"></use></svg>
+            <span>Locked</span>
+          </span>
+          <span id="syncStatus" class="status-pill neutral">
+            <svg class="icon"><use href="/icons.svg#icon-user"></use></svg>
+            <span>Signed out</span>
+          </span>
+          <span id="sessionStatus" class="status-pill neutral hidden">
+            <svg class="icon"><use href="/icons.svg#icon-clock"></use></svg>
+            <span>自动锁定 5 分钟</span>
+          </span>
+          <span id="saveStatus" class="status-pill neutral" data-state="locked" role="status" aria-live="polite">
+            未解锁
+          </span>
+          <button id="themeToggleButton" class="theme-toggle" type="button" aria-label="切换明暗模式">
+            <svg class="icon"><use href="/icons.svg#icon-moon"></use></svg>
+            <span>深色</span>
+          </button>
+        </div>
+      </header>
+
+      <section id="lockedView" class="unlock-grid">
+        <form id="unlockForm" class="panel unlock-panel" autocomplete="off">
+          <div class="panel-heading">
+            <h2 id="unlockTitle"><svg class="icon"><use href="/icons.svg#icon-lock"></use></svg>登录</h2>
+            <span class="muted">Cloudflare KV stores encrypted vaults only</span>
+          </div>
+
+          <div class="auth-mode" role="tablist" aria-label="登录或注册">
+            <button id="loginModeButton" type="button" role="tab" aria-selected="true" data-active="true">
+              <svg class="icon"><use href="/icons.svg#icon-log-in"></use></svg>
+              <span>登录</span>
+            </button>
+            <button id="registerButton" type="button" role="tab" aria-selected="false" data-active="false">
+              <svg class="icon"><use href="/icons.svg#icon-user-plus"></use></svg>
+              <span>注册</span>
+            </button>
+          </div>
+
+          <label>
+            <span class="label-text"><svg class="icon"><use href="/icons.svg#icon-mail"></use></svg>邮箱</span>
+            <input id="loginEmail" name="email" type="email" autocomplete="username" required>
+          </label>
+
+          <label>
+            <span class="label-text"><svg class="icon"><use href="/icons.svg#icon-key"></use></svg>密码</span>
+            <input id="loginPassword" name="password" type="password" autocomplete="current-password" required minlength="10">
+          </label>
+          <span id="masterPasswordStrength" class="password-strength hidden" data-level="empty">主密码强度会在输入后显示。</span>
+
+          <label id="inviteTokenRow" class="hidden">
+            <span class="label-text"><svg class="icon"><use href="/icons.svg#icon-user-plus"></use></svg>邀请码</span>
+            <input id="inviteToken" name="inviteToken" type="text" autocomplete="off" spellcheck="false">
+          </label>
+
+          <div class="button-row">
+            <button id="unlockSubmitButton" type="submit" class="primary">
+              <svg class="icon"><use href="/icons.svg#icon-log-in"></use></svg>
+              <span>登录</span>
+            </button>
+          </div>
+
+          <p id="unlockMessage" class="message" role="status"></p>
+        </form>
+
+        <aside class="panel facts-panel">
+          <div class="fact">
+            <strong>登录密码</strong>
+            <span>原始密码不上传，也用于浏览器端解密保险箱。</span>
+          </div>
+          <div class="fact">
+            <strong>用户账号</strong>
+            <span>每个邮箱对应一个独立的加密保险箱。</span>
+          </div>
+          <div class="fact">
+            <strong>服务器</strong>
+            <span>只保存登录校验数据、session 和保险箱密文。</span>
+          </div>
+          <div class="fact">
+            <strong>保险箱</strong>
+            <span>邮箱、密码、2FA 种子、恢复码都在浏览器加密。</span>
+          </div>
+        </aside>
+      </section>
+
+      <section id="overviewView" class="overview-view app-page hidden" aria-labelledby="overviewTitle">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">Vault overview</p>
+            <h2 id="overviewTitle">总览</h2>
+          </div>
+          <span class="muted">先看状态，再进入具体任务。</span>
+        </div>
+
+        <div class="overview-hero panel">
+          <div>
+            <span class="section-icon">
+              <svg class="icon"><use href="/icons.svg#icon-shield"></use></svg>
+            </span>
+            <p class="eyebrow">Current vault</p>
+            <h3>保险箱状态</h3>
+            <p id="overviewBackupDetail" class="muted">解锁后会显示备份状态。</p>
+          </div>
+          <div class="health-score" data-level="empty">
+            <strong id="overviewHealthScore">--</strong>
+            <span id="overviewHealthLabel">健康评分</span>
+            <div class="health-meter" aria-hidden="true"><span id="overviewHealthBar"></span></div>
+          </div>
+          <div class="overview-actions" aria-label="常用操作">
+            <button id="overviewAddButton" type="button" class="primary">
+              <svg class="icon"><use href="/icons.svg#icon-plus"></use></svg>
+              <span>新增账号</span>
+            </button>
+            <button id="overviewVaultButton" type="button">
+              <svg class="icon"><use href="/icons.svg#icon-key"></use></svg>
+              <span>打开保险箱</span>
+            </button>
+            <button id="overviewBackupButton" type="button">
+              <svg class="icon"><use href="/icons.svg#icon-cloud-download"></use></svg>
+              <span>备份</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="overview-metrics" aria-label="保险箱指标">
+          <div class="overview-stat panel">
+            <span class="section-icon"><svg class="icon"><use href="/icons.svg#icon-list"></use></svg></span>
+            <strong id="overviewAccountCount">0</strong>
+            <span>保存账号</span>
+          </div>
+          <button id="overviewRiskButton" class="overview-stat panel" type="button">
+            <span class="section-icon"><svg class="icon"><use href="/icons.svg#icon-alert-circle"></use></svg></span>
+            <strong id="overviewRiskCount">0</strong>
+            <span>需要处理</span>
+          </button>
+          <div class="overview-stat panel">
+            <span class="section-icon"><svg class="icon"><use href="/icons.svg#icon-clock"></use></svg></span>
+            <strong id="overviewAutoLockStatus">5 分钟</strong>
+            <span>自动锁定</span>
+          </div>
+          <div class="overview-stat panel">
+            <span class="section-icon"><svg class="icon"><use href="/icons.svg#icon-save"></use></svg></span>
+            <strong id="overviewLocalStatus">本地缓存</strong>
+            <span>本机状态</span>
+          </div>
+        </div>
+
+        <div class="overview-grid">
+          <section class="panel overview-panel" aria-labelledby="overviewRiskTitle">
+            <div class="settings-panel-head">
+              <span class="section-icon">
+                <svg class="icon"><use href="/icons.svg#icon-clipboard-check"></use></svg>
+              </span>
+              <div>
+                <h3 id="overviewRiskTitle">优先处理</h3>
+                <p class="muted">这里只列出最需要关注的账号。</p>
+              </div>
+            </div>
+            <div id="overviewRiskList" class="overview-risk-list"></div>
+          </section>
+
+          <section class="panel overview-panel" aria-labelledby="overviewNextTitle">
+            <div class="settings-panel-head">
+              <span class="section-icon">
+                <svg class="icon"><use href="/icons.svg#icon-settings"></use></svg>
+              </span>
+              <div>
+                <h3 id="overviewNextTitle">下一步</h3>
+                <p class="muted">按任务进入独立页面，避免所有操作挤在一起。</p>
+              </div>
+            </div>
+            <div class="overview-task-list">
+              <button id="overviewSecurityButton" type="button">
+                <svg class="icon"><use href="/icons.svg#icon-clipboard-check"></use></svg>
+                <span>查看完整安全检查</span>
+              </button>
+              <button id="overviewSettingsButton" type="button">
+                <svg class="icon"><use href="/icons.svg#icon-settings"></use></svg>
+                <span>调整偏好和账号安全</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="panel overview-panel" aria-labelledby="overviewActivityTitle">
+            <div class="settings-panel-head">
+              <span class="section-icon">
+                <svg class="icon"><use href="/icons.svg#icon-clock"></use></svg>
+              </span>
+              <div>
+                <h3 id="overviewActivityTitle">最近活动</h3>
+                <p class="muted">只记录操作类型，不记录密码或 2FA 内容。</p>
+              </div>
+            </div>
+            <div id="overviewActivityList" class="activity-list"></div>
+          </section>
+        </div>
+      </section>
