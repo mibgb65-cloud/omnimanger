@@ -6,7 +6,8 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "check": "node --check src/index.js && node --check public/app.js",
+    "check": "node --check src/index.js && node --check public/app.js && node --test",
+    "test": "node --test",
     "dev": "wrangler dev --local --port 8787",
     "deploy": "wrangler deploy"
   }

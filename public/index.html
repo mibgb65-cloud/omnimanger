@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Account Secret Vault</title>
+    <link rel="manifest" href="/manifest.webmanifest">
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
@@ -175,6 +176,11 @@
             <input id="loginPassword" name="password" type="password" autocomplete="current-password" required minlength="10">
           </label>
 
+          <label>
+            <span class="label-text"><svg class="icon"><use href="#icon-user-plus"></use></svg>邀请码</span>
+            <input id="inviteToken" name="inviteToken" type="text" autocomplete="off" spellcheck="false">
+          </label>
+
           <div class="button-row">
             <button type="submit" class="primary">
               <svg class="icon"><use href="#icon-log-in"></use></svg>
@@ -239,6 +245,13 @@
               <span>开放新用户注册</span>
               <input id="registrationOpenToggle" type="checkbox">
             </label>
+            <div class="invite-controls">
+              <button id="createInviteButton" type="button">
+                <svg class="icon"><use href="#icon-user-plus"></use></svg>
+                <span>邀请</span>
+              </button>
+              <input id="inviteLink" type="text" readonly aria-label="邀请链接">
+            </div>
           </div>
 
           <form id="entryForm" autocomplete="off">
@@ -279,6 +292,10 @@
               <span class="label-text"><svg class="icon"><use href="#icon-key"></use></svg>密码</span>
               <div class="secret-control">
                 <input id="entryPassword" name="password" type="password" autocomplete="new-password">
+                <button id="generatePasswordButton" type="button">
+                  <svg class="icon"><use href="#icon-key"></use></svg>
+                  <span>生成</span>
+                </button>
                 <button id="togglePasswordButton" type="button" aria-label="显示或隐藏密码">
                   <svg class="icon"><use href="#icon-eye"></use></svg>
                   <span>显示</span>
@@ -288,6 +305,7 @@
                   <span>复制</span>
                 </button>
               </div>
+              <span id="passwordStrength" class="password-strength" data-level="empty">未填写密码</span>
             </label>
 
             <label class="secret-row">
@@ -327,6 +345,32 @@
           <div class="bottom-bar">
             <span id="saveStatus" class="muted" role="status" aria-live="polite">未解锁</span>
             <div class="button-row">
+              <label class="compact-control">
+                <span>自动锁定</span>
+                <select id="autoLockSelect">
+                  <option value="1">1 分钟</option>
+                  <option value="5">5 分钟</option>
+                  <option value="15">15 分钟</option>
+                  <option value="0">关闭</option>
+                </select>
+              </label>
+              <label class="compact-check">
+                <input id="localCacheToggle" type="checkbox">
+                <span>本地缓存</span>
+              </label>
+              <input id="importFileInput" class="sr-only" type="file" accept="application/json">
+              <button id="importButton" type="button">
+                <svg class="icon"><use href="#icon-cloud-download"></use></svg>
+                <span>导入</span>
+              </button>
+              <button id="exportButton" type="button">
+                <svg class="icon"><use href="#icon-save"></use></svg>
+                <span>导出</span>
+              </button>
+              <button id="changePasswordButton" type="button">
+                <svg class="icon"><use href="#icon-key"></use></svg>
+                <span>改密</span>
+              </button>
               <button id="pullButton" type="button">
                 <svg class="icon"><use href="#icon-cloud-download"></use></svg>
                 <span>拉取</span>
@@ -357,6 +401,6 @@
       </button>
     </template>
 
-    <script src="/app.js" defer></script>
+    <script type="module" src="/app.js"></script>
   </body>
 </html>

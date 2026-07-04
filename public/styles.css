@@ -102,7 +102,8 @@ html[data-theme="dark"] body {
 
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
 }
 
@@ -212,7 +213,8 @@ button.danger {
 }
 
 input,
-textarea {
+textarea,
+select {
   appearance: none;
   width: 100%;
   border: 1px solid var(--color-border);
@@ -227,7 +229,8 @@ textarea {
     box-shadow 160ms ease;
 }
 
-input {
+input,
+select {
   height: 42px;
   padding: 0 14px;
 }
@@ -244,12 +247,14 @@ textarea::placeholder {
 }
 
 input:hover,
-textarea:hover {
+textarea:hover,
+select:hover {
   border-color: var(--color-border-strong);
 }
 
 input:focus,
 textarea:focus,
+select:focus,
 button:focus-visible {
   border-color: var(--color-accent);
   box-shadow: 0 0 0 3px var(--color-focus);
@@ -408,6 +413,7 @@ html[data-theme="dark"] .panel {
 
 html[data-theme="dark"] input,
 html[data-theme="dark"] textarea,
+html[data-theme="dark"] select,
 html[data-theme="dark"] button {
   color-scheme: dark;
   border-color: #4a4a4a;
@@ -709,6 +715,19 @@ html[data-theme="dark"] .add-button:hover {
   padding: 14px 18px;
 }
 
+.invite-controls {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 260px);
+  gap: 8px;
+  align-items: center;
+}
+
+.invite-controls input {
+  height: 40px;
+  min-width: 0;
+  font-size: 12px;
+}
+
 .admin-copy {
   display: flex;
   align-items: center;
@@ -808,7 +827,7 @@ html[data-theme="dark"] .add-button:hover {
 
 .secret-control {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   gap: 8px;
 }
 
@@ -819,6 +838,24 @@ html[data-theme="dark"] .add-button:hover {
 .secret-control button .icon {
   width: 16px;
   height: 16px;
+}
+
+.password-strength {
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+}
+
+.password-strength[data-level="strong"] {
+  color: var(--color-accent);
+}
+
+.password-strength[data-level="medium"] {
+  color: var(--color-warning);
+}
+
+.password-strength[data-level="weak"],
+.password-strength[data-level="duplicate"] {
+  color: var(--color-danger);
 }
 
 .totp-panel {
@@ -866,6 +903,48 @@ html[data-theme="dark"] .add-button:hover {
   gap: 14px;
   border-top: 1px solid var(--color-border-subtle);
   padding: 14px 18px;
+}
+
+.bottom-bar .button-row {
+  justify-content: flex-end;
+}
+
+.compact-control,
+.compact-check {
+  display: flex;
+  grid-template-columns: none;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.compact-control span,
+.compact-check span {
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+}
+
+.compact-control select {
+  width: auto;
+  min-width: 92px;
+  height: 40px;
+  padding: 0 28px 0 12px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 17px,
+    calc(100% - 9px) 17px;
+  background-size:
+    5px 5px,
+    5px 5px;
+  background-repeat: no-repeat;
+}
+
+.compact-check input {
+  width: 18px;
+  height: 18px;
+  padding: 0;
 }
 
 .bottom-bar .button-row button .icon,
@@ -925,16 +1004,23 @@ html[data-theme="dark"] .add-button:hover {
 
   .field-grid,
   .detail-head,
-  .secret-control,
   .admin-panel,
   .totp-panel,
   .bottom-bar {
     grid-template-columns: 1fr;
   }
 
+  .secret-control {
+    grid-template-columns: 1fr;
+  }
+
   .admin-panel {
     align-items: stretch;
     display: grid;
+  }
+
+  .invite-controls {
+    grid-template-columns: 1fr;
   }
 
   .switch-row {
@@ -948,7 +1034,7 @@ html[data-theme="dark"] .add-button:hover {
 
   .button-row {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
   }
 
   .unlock-panel .button-row {

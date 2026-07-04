@@ -3,6 +3,10 @@ const MAX_AUTH_BYTES = 4096;
 const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const REGISTRATION_SETTING_KEY = "settings:registration-open";
+const SERVER_AUTH_ITERATIONS = 210000;
+const MIN_VAULT_KDF_ITERATIONS = 100000;
+const MAX_VAULT_KDF_ITERATIONS = 2000000;
+const INVITE_TTL_SECONDS = 7 * 24 * 60 * 60;
 const RATE_LIMITS = {
   registerIp: { limit: 5, windowSeconds: 60 * 60 },
   registerEmail: { limit: 3, windowSeconds: 60 * 60 },
@@ -11,6 +15,7 @@ const RATE_LIMITS = {
   vaultRead: { limit: 120, windowSeconds: 60 },
   vaultWrite: { limit: 60, windowSeconds: 60 },
   adminSettings: { limit: 20, windowSeconds: 60 },
+  passwordChange: { limit: 5, windowSeconds: 15 * 60 },
 };
 
 const SECURITY_HEADERS = {
@@ -82,6 +87,20 @@ async function handleApi(request, env, url) {
     return logoutUser(url);
   }
 
+  if (url.pathname === "/api/auth/change-password" && request.method === "POST") {
+    const user = await requireSessionUser(request, env);
+    if (user instanceof Response) return user;
+    const limited = await enforceRateLimit(
+      env,
+      "password-change",
+      user.id,
+      RATE_LIMITS.passwordChange.limit,
+      RATE_LIMITS.passwordChange.windowSeconds,
+    );
+    if (limited) return limited;
+    return changePassword(request, env, user);
+  }
+
   if (url.pathname === "/api/auth/me" && request.method === "GET") {
     const user = await getSessionUser(request, env);
     return json({ user: user ? publicUser(user, env) : null });
@@ -105,6 +124,20 @@ async function handleApi(request, env, url) {
     );
     if (limited) return limited;
     return putAdminSettings(request, env);
+  }
+
+  if (url.pathname === "/api/admin/invites" && request.method === "POST") {
+    const user = await requireAdminUser(request, env);
+    if (user instanceof Response) return user;
+    const limited = await enforceRateLimit(
+      env,
+      "admin-settings",
+      user.id,
+      RATE_LIMITS.adminSettings.limit,
+      RATE_LIMITS.adminSettings.windowSeconds,
+    );
+    if (limited) return limited;
+    return createInvite(env, user);
   }
 
   if (url.pathname === "/api/vault" && request.method === "GET") {
@@ -173,7 +206,9 @@ async function registerUser(request, env, url) {
   const registrationOpen = await getRegistrationOpen(env);
   const adminEmail = getAdminEmail(env);
   const isAdminRegistration = Boolean(adminEmail && email === adminEmail);
-  if (!registrationOpen && !isAdminRegistration) {
+  const inviteToken = normalizeInviteToken(body.inviteToken);
+  const inviteAllowed = !registrationOpen && !isAdminRegistration ? await canUseInvite(env, inviteToken) : false;
+  if (!registrationOpen && !isAdminRegistration && !inviteAllowed) {
     return json({ error: "Registration is closed." }, 403);
   }
 
@@ -184,20 +219,22 @@ async function registerUser(request, env, url) {
   }
 
   const authSalt = crypto.getRandomValues(new Uint8Array(16));
-  const authHash = await hashAuthSecret(authSecret, authSalt);
+  const authVerifier = await makeAuthVerifier(authSecret, authSalt);
   const now = new Date().toISOString();
   const user = {
     id: crypto.randomUUID(),
     email,
     role: isAdminRegistration ? "admin" : "user",
-    authSalt: bytesToBase64(authSalt),
-    authHash,
+    auth: authVerifier,
     createdAt: now,
     updatedAt: now,
   };
 
   await env.VAULT.put(userKey(user.id), JSON.stringify(user));
   await env.VAULT.put(emailKey, user.id);
+  if (inviteAllowed) {
+    await consumeInvite(env, inviteToken, user);
+  }
 
   return createSessionResponse({ user: publicUser(user, env) }, user, env, url);
 }
@@ -235,12 +272,16 @@ async function loginUser(request, env, url) {
     return json({ error: "Email or password is invalid." }, 401);
   }
 
-  const authSalt = base64ToBytes(user.authSalt);
-  const authHash = await hashAuthSecret(authSecret, authSalt);
-  if (!timingSafeEqual(authHash, user.authHash)) {
+  const verified = await verifyAuthSecret(user, authSecret);
+  if (!verified) {
     return json({ error: "Email or password is invalid." }, 401);
   }
 
+  if (verified.upgradedUser) {
+    await env.VAULT.put(userKey(verified.upgradedUser.id), JSON.stringify(verified.upgradedUser));
+  }
+
+  await recordUserActivity(env, verified.upgradedUser || user, { lastLoginAt: new Date().toISOString() });
   return createSessionResponse({ user: publicUser(user, env) }, user, env, url);
 }
 
@@ -257,13 +298,15 @@ function logoutUser(url) {
 async function getVault(env, user) {
   const stored = await env.VAULT.getWithMetadata(vaultKey(user.id), "text");
   if (!stored.value) {
-    return json({ envelope: null, updatedAt: null });
+    return json({ envelope: null, updatedAt: null, revision: null });
   }
 
   try {
+    const revision = stored.metadata?.revision ?? stored.metadata?.updatedAt ?? null;
     return json({
       envelope: JSON.parse(stored.value),
       updatedAt: stored.metadata?.updatedAt ?? null,
+      revision,
     });
   } catch {
     return json({ error: "Stored vault data is invalid." }, 500);
@@ -274,17 +317,62 @@ async function putVault(request, env, user) {
   const body = await readJsonBody(request, MAX_VAULT_BYTES);
   if (body instanceof Response) return body;
 
-  if (!isVaultEnvelope(body)) {
+  const envelope = isVaultEnvelope(body) ? body : body?.envelope;
+  const baseRevision = isVaultEnvelope(body) ? request.headers.get("If-Match") : normalizeRevision(body?.baseRevision);
+
+  if (!isVaultEnvelope(envelope)) {
     return json({ error: "Body is not a valid encrypted vault envelope." }, 400);
   }
 
-  const updatedAt = new Date().toISOString();
-  body.updatedAt = updatedAt;
-  await env.VAULT.put(vaultKey(user.id), JSON.stringify(body), {
-    metadata: { updatedAt, userId: user.id },
-  });
+  const current = await env.VAULT.getWithMetadata(vaultKey(user.id), "text");
+  const currentRevision = current.metadata?.revision ?? current.metadata?.updatedAt ?? null;
+  if (current.value && baseRevision !== null && baseRevision !== currentRevision) {
+    return json(
+      {
+        error: "Vault has changed on another device.",
+        currentRevision,
+        updatedAt: current.metadata?.updatedAt ?? null,
+      },
+      409,
+    );
+  }
 
-  return json({ ok: true, updatedAt });
+  const updatedAt = new Date().toISOString();
+  const revision = crypto.randomUUID();
+  envelope.updatedAt = updatedAt;
+  await env.VAULT.put(vaultKey(user.id), JSON.stringify(envelope), {
+    metadata: { updatedAt, userId: user.id, revision },
+  });
+  await recordUserActivity(env, user, { lastVaultSaveAt: updatedAt });
+
+  return json({ ok: true, updatedAt, revision });
+}
+
+async function changePassword(request, env, user) {
+  const body = await readJsonBody(request, MAX_AUTH_BYTES);
+  if (body instanceof Response) return body;
+
+  const authSecret = decodeAuthSecret(body.authSecret);
+  const newAuthSecret = decodeAuthSecret(body.newAuthSecret);
+  if (!authSecret || !newAuthSecret) {
+    return json({ error: "Password change payload is invalid." }, 400);
+  }
+
+  const verified = await verifyAuthSecret(user, authSecret);
+  if (!verified) {
+    return json({ error: "Current password is invalid." }, 401);
+  }
+
+  const nextUser = {
+    ...(verified.upgradedUser || user),
+    auth: await makeAuthVerifier(newAuthSecret, crypto.getRandomValues(new Uint8Array(16))),
+    updatedAt: new Date().toISOString(),
+  };
+  delete nextUser.authHash;
+  delete nextUser.authSalt;
+
+  await env.VAULT.put(userKey(nextUser.id), JSON.stringify(nextUser));
+  return json({ ok: true });
 }
 
 async function getAdminSettings(env) {
@@ -305,23 +393,77 @@ async function putAdminSettings(request, env) {
   return json({ registrationOpen: body.registrationOpen });
 }
 
+async function createInvite(env, user) {
+  const token = base64UrlEncode(crypto.getRandomValues(new Uint8Array(24)));
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + INVITE_TTL_SECONDS * 1000).toISOString();
+  const record = {
+    createdBy: user.id,
+    createdAt: now.toISOString(),
+    expiresAt,
+  };
+
+  await env.VAULT.put(inviteKey(token), JSON.stringify(record), {
+    expirationTtl: INVITE_TTL_SECONDS + 60,
+  });
+
+  return json({ token, expiresAt });
+}
+
 async function getRegistrationOpen(env) {
   return (await env.VAULT.get(REGISTRATION_SETTING_KEY, "text")) === "true";
 }
 
+async function canUseInvite(env, token) {
+  if (!token) return false;
+  const raw = await env.VAULT.get(inviteKey(token), "text");
+  if (!raw) return false;
+
+  try {
+    const invite = JSON.parse(raw);
+    return Boolean(invite.expiresAt && Date.now() < Date.parse(invite.expiresAt));
+  } catch {
+    return false;
+  }
+}
+
+async function consumeInvite(env, token, user) {
+  const key = inviteKey(token);
+  const raw = await env.VAULT.get(key, "text");
+  if (!raw) return;
+
+  try {
+    const invite = JSON.parse(raw);
+    invite.usedBy = user.id;
+    invite.usedEmail = user.email;
+    invite.usedAt = new Date().toISOString();
+    await env.VAULT.put(`used-${key}:${user.id}`, JSON.stringify(invite), {
+      expirationTtl: INVITE_TTL_SECONDS,
+    });
+  } catch {
+    // The account was already created; deleting the token is the important part.
+  }
+
+  await env.VAULT.delete(key);
+}
+
 async function readJsonBody(request, maxBytes) {
-  const contentLength = Number(request.headers.get("content-length") || "0");
+  const rawContentLength = request.headers.get("content-length");
+  const contentLength = rawContentLength === null ? 0 : Number(rawContentLength);
+  if (!Number.isFinite(contentLength) || contentLength < 0) {
+    return json({ error: "Content-Length is invalid." }, 400);
+  }
   if (contentLength > maxBytes) {
     return json({ error: "Payload is too large." }, 413);
   }
 
-  const body = await request.text();
-  if (body.length > maxBytes) {
+  const buffer = await request.arrayBuffer();
+  if (buffer.byteLength > maxBytes) {
     return json({ error: "Payload is too large." }, 413);
   }
 
   try {
-    return JSON.parse(body);
+    return JSON.parse(new TextDecoder().decode(buffer));
   } catch {
     return json({ error: "Body must be JSON." }, 400);
   }
@@ -398,6 +540,81 @@ async function hashAuthSecret(authSecret, salt) {
   return bytesToBase64(new Uint8Array(digest));
 }
 
+async function makeAuthVerifier(authSecret, salt) {
+  const material = await crypto.subtle.importKey("raw", authSecret, "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt,
+      iterations: SERVER_AUTH_ITERATIONS,
+      hash: "SHA-256",
+    },
+    material,
+    256,
+  );
+
+  return {
+    version: 2,
+    name: "PBKDF2-SHA256",
+    iterations: SERVER_AUTH_ITERATIONS,
+    salt: bytesToBase64(salt),
+    hash: bytesToBase64(new Uint8Array(bits)),
+  };
+}
+
+async function verifyAuthSecret(user, authSecret) {
+  if (user.auth?.version === 2 && user.auth.name === "PBKDF2-SHA256") {
+    if (
+      !Number.isInteger(user.auth.iterations) ||
+      user.auth.iterations < 100000 ||
+      user.auth.iterations > 1000000 ||
+      !isBase64Field(user.auth.salt, 8, 128) ||
+      !isBase64Field(user.auth.hash, 32, 32)
+    ) {
+      return null;
+    }
+
+    try {
+      const salt = base64ToBytes(user.auth.salt);
+      const material = await crypto.subtle.importKey("raw", authSecret, "PBKDF2", false, ["deriveBits"]);
+      const bits = await crypto.subtle.deriveBits(
+        {
+          name: "PBKDF2",
+          salt,
+          iterations: user.auth.iterations,
+          hash: "SHA-256",
+        },
+        material,
+        256,
+      );
+      return timingSafeEqual(bytesToBase64(new Uint8Array(bits)), user.auth.hash) ? { upgradedUser: null } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  if (!user.authSalt || !user.authHash) return null;
+
+  let authSalt;
+  try {
+    authSalt = base64ToBytes(user.authSalt);
+  } catch {
+    return null;
+  }
+
+  const authHash = await hashAuthSecret(authSecret, authSalt);
+  if (!timingSafeEqual(authHash, user.authHash)) return null;
+
+  const nextUser = {
+    ...user,
+    auth: await makeAuthVerifier(authSecret, crypto.getRandomValues(new Uint8Array(16))),
+    updatedAt: new Date().toISOString(),
+  };
+  delete nextUser.authHash;
+  delete nextUser.authSalt;
+  return { upgradedUser: nextUser };
+}
+
 function decodeAuthSecret(value) {
   if (typeof value !== "string") return null;
   try {
@@ -467,6 +684,16 @@ function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
 }
 
+function normalizeInviteToken(token) {
+  const normalized = String(token || "").trim();
+  return /^[A-Za-z0-9_-]{24,128}$/.test(normalized) ? normalized : "";
+}
+
+function normalizeRevision(revision) {
+  if (revision === null || revision === undefined || revision === "") return null;
+  return String(revision);
+}
+
 function getAdminEmail(env) {
   return normalizeEmail(env.ADMIN_EMAIL || "");
 }
@@ -486,6 +713,23 @@ function userKey(id) {
 
 function vaultKey(userId) {
   return `vault:${userId}`;
+}
+
+function inviteKey(token) {
+  return `invite:${token}`;
+}
+
+async function recordUserActivity(env, user, fields) {
+  const current = await getUserById(env, user.id);
+  if (!current) return;
+  await env.VAULT.put(
+    userKey(user.id),
+    JSON.stringify({
+      ...current,
+      ...fields,
+      updatedAt: new Date().toISOString(),
+    }),
+  );
 }
 
 async function enforceRateLimit(env, scope, identifier, limit, windowSeconds) {
@@ -522,19 +766,38 @@ function getClientIp(request) {
 }
 
 function isVaultEnvelope(value) {
-  return Boolean(
-    value &&
-      typeof value === "object" &&
-      value.version === 1 &&
-      value.kdf &&
-      value.kdf.name === "PBKDF2-SHA256" &&
-      Number.isInteger(value.kdf.iterations) &&
-      typeof value.kdf.salt === "string" &&
-      value.cipher &&
-      value.cipher.name === "AES-GCM" &&
-      typeof value.cipher.iv === "string" &&
-      typeof value.cipher.data === "string",
-  );
+  if (!value || typeof value !== "object" || value.version !== 1) return false;
+  if (!value.kdf || value.kdf.name !== "PBKDF2-SHA256") return false;
+  if (
+    !Number.isInteger(value.kdf.iterations) ||
+    value.kdf.iterations < MIN_VAULT_KDF_ITERATIONS ||
+    value.kdf.iterations > MAX_VAULT_KDF_ITERATIONS
+  ) {
+    return false;
+  }
+  if (!isBase64Field(value.kdf.salt, 8, 128)) return false;
+  if (!value.cipher || value.cipher.name !== "AES-GCM") return false;
+  if (!isBase64Field(value.cipher.iv, 12, 12)) return false;
+  if (!isBase64Field(value.cipher.data, 1, MAX_VAULT_BYTES)) return false;
+  if (value.updatedAt !== undefined && !isIsoDateString(value.updatedAt)) return false;
+  return true;
+}
+
+function isBase64Field(value, minBytes, maxBytes) {
+  if (typeof value !== "string" || !/^[A-Za-z0-9+/]*={0,2}$/.test(value)) return false;
+  if (value.length % 4 !== 0) return false;
+
+  const decodedLength = base64DecodedLength(value);
+  return decodedLength >= minBytes && decodedLength <= maxBytes;
+}
+
+function base64DecodedLength(value) {
+  const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
+  return Math.floor((value.length * 3) / 4) - padding;
+}
+
+function isIsoDateString(value) {
+  return typeof value === "string" && !Number.isNaN(Date.parse(value));
 }
 
 function timingSafeEqual(left, right) {

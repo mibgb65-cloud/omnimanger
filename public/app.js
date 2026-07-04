@@ -1,10 +1,15 @@
 const STORAGE_PREFIX = "account-secret-vault.envelope.";
 const LAST_EMAIL_KEY = "account-secret-vault.last-email";
 const THEME_KEY = "account-secret-vault.theme";
+const AUTO_LOCK_KEY = "account-secret-vault.auto-lock-minutes";
+const CACHE_DISABLED_KEY = "account-secret-vault.cache-disabled";
 const KDF_ITERATIONS = 310000;
 const AUTH_KDF_ITERATIONS = 120000;
+const CLIPBOARD_CLEAR_MS = 30_000;
+const GENERATED_PASSWORD_LENGTH = 20;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
+const hasDocument = typeof document !== "undefined";
 
 const state = {
   user: null,
@@ -18,60 +23,83 @@ const state = {
   pulling: false,
   authenticating: false,
   dirty: false,
+  remoteRevision: null,
+  lastActivityAt: Date.now(),
+  autoLockMinutes: 5,
+  cacheDisabled: false,
+  clipboardClearTimer: null,
   passwordVisible: false,
   totpVisible: false,
 };
 
-const $ = (id) => document.getElementById(id);
+const $ = (id) => (hasDocument ? document.getElementById(id) : null);
 
-const els = {
-  lockedView: $("lockedView"),
-  vaultView: $("vaultView"),
-  unlockForm: $("unlockForm"),
-  loginEmail: $("loginEmail"),
-  loginPassword: $("loginPassword"),
-  registerButton: $("registerButton"),
-  themeToggleButton: $("themeToggleButton"),
-  adminPanel: $("adminPanel"),
-  adminSettingsStatus: $("adminSettingsStatus"),
-  registrationOpenToggle: $("registrationOpenToggle"),
-  unlockMessage: $("unlockMessage"),
-  lockStatus: $("lockStatus"),
-  syncStatus: $("syncStatus"),
-  saveStatus: $("saveStatus"),
-  searchInput: $("searchInput"),
-  addEntryButton: $("addEntryButton"),
-  entryList: $("entryList"),
-  entryTemplate: $("entryTemplate"),
-  entryForm: $("entryForm"),
-  entryName: $("entryName"),
-  entryLogin: $("entryLogin"),
-  entryBackupEmail: $("entryBackupEmail"),
-  entryBackupPhone: $("entryBackupPhone"),
-  entryTags: $("entryTags"),
-  entryPassword: $("entryPassword"),
-  entryTotpSecret: $("entryTotpSecret"),
-  entryRecoveryCodes: $("entryRecoveryCodes"),
-  entryNotes: $("entryNotes"),
-  togglePasswordButton: $("togglePasswordButton"),
-  toggleTotpButton: $("toggleTotpButton"),
-  deleteEntryButton: $("deleteEntryButton"),
-  pullButton: $("pullButton"),
-  saveButton: $("saveButton"),
-  lockButton: $("lockButton"),
-  totpCode: $("totpCode"),
-  totpTimerBar: $("totpTimerBar"),
-};
+const els = hasDocument
+  ? {
+      lockedView: $("lockedView"),
+      vaultView: $("vaultView"),
+      unlockForm: $("unlockForm"),
+      loginEmail: $("loginEmail"),
+      loginPassword: $("loginPassword"),
+      inviteToken: $("inviteToken"),
+      registerButton: $("registerButton"),
+      themeToggleButton: $("themeToggleButton"),
+      adminPanel: $("adminPanel"),
+      adminSettingsStatus: $("adminSettingsStatus"),
+      registrationOpenToggle: $("registrationOpenToggle"),
+      createInviteButton: $("createInviteButton"),
+      inviteLink: $("inviteLink"),
+      unlockMessage: $("unlockMessage"),
+      lockStatus: $("lockStatus"),
+      syncStatus: $("syncStatus"),
+      saveStatus: $("saveStatus"),
+      searchInput: $("searchInput"),
+      addEntryButton: $("addEntryButton"),
+      entryList: $("entryList"),
+      entryTemplate: $("entryTemplate"),
+      entryForm: $("entryForm"),
+      entryName: $("entryName"),
+      entryLogin: $("entryLogin"),
+      entryBackupEmail: $("entryBackupEmail"),
+      entryBackupPhone: $("entryBackupPhone"),
+      entryTags: $("entryTags"),
+      entryPassword: $("entryPassword"),
+      passwordStrength: $("passwordStrength"),
+      generatePasswordButton: $("generatePasswordButton"),
+      entryTotpSecret: $("entryTotpSecret"),
+      entryRecoveryCodes: $("entryRecoveryCodes"),
+      entryNotes: $("entryNotes"),
+      togglePasswordButton: $("togglePasswordButton"),
+      toggleTotpButton: $("toggleTotpButton"),
+      deleteEntryButton: $("deleteEntryButton"),
+      importFileInput: $("importFileInput"),
+      importButton: $("importButton"),
+      exportButton: $("exportButton"),
+      changePasswordButton: $("changePasswordButton"),
+      autoLockSelect: $("autoLockSelect"),
+      localCacheToggle: $("localCacheToggle"),
+      pullButton: $("pullButton"),
+      saveButton: $("saveButton"),
+      lockButton: $("lockButton"),
+      totpCode: $("totpCode"),
+      totpTimerBar: $("totpTimerBar"),
+    }
+  : {};
 
-init();
+if (hasDocument) {
+  init();
+}
 
 function init() {
   initDecorativeIcons();
   initTheme();
+  initSecurityPreferences();
   els.loginEmail.value = localStorage.getItem(LAST_EMAIL_KEY) || "";
+  els.inviteToken.value = new URLSearchParams(location.search).get("invite") || "";
 
   els.themeToggleButton.addEventListener("click", toggleTheme);
   els.registrationOpenToggle.addEventListener("change", saveAdminSettings);
+  els.createInviteButton.addEventListener("click", createInvite);
   els.unlockForm.addEventListener("submit", (event) => {
     event.preventDefault();
     authenticate("login");
@@ -80,9 +108,16 @@ function init() {
   els.searchInput.addEventListener("input", renderEntries);
   els.addEntryButton.addEventListener("click", addEntry);
   els.entryForm.addEventListener("input", handleEntryInput);
+  els.generatePasswordButton.addEventListener("click", fillGeneratedPassword);
   els.togglePasswordButton.addEventListener("click", togglePassword);
   els.toggleTotpButton.addEventListener("click", toggleTotp);
   els.deleteEntryButton.addEventListener("click", deleteSelectedEntry);
+  els.importButton.addEventListener("click", () => els.importFileInput.click());
+  els.importFileInput.addEventListener("change", importVaultBackup);
+  els.exportButton.addEventListener("click", exportVaultBackup);
+  els.changePasswordButton.addEventListener("click", changeMasterPassword);
+  els.autoLockSelect.addEventListener("change", saveAutoLockPreference);
+  els.localCacheToggle.addEventListener("change", saveLocalCachePreference);
   els.saveButton.addEventListener("click", () => saveVaultNow(true));
   els.pullButton.addEventListener("click", pullRemoteVault);
   els.lockButton.addEventListener("click", logoutVault);
@@ -95,12 +130,28 @@ function init() {
 
   setInterval(updateTotpDisplay, 1000);
   setInterval(lockIfHiddenTooLong, 30_000);
+  setInterval(lockIfIdleTooLong, 30_000);
+
+  for (const eventName of ["pointerdown", "keydown", "input"]) {
+    document.addEventListener(eventName, markActivity, true);
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      sessionStorage.removeItem("vault.hidden-at");
+      markActivity();
+    }
+  });
 
   window.addEventListener("beforeunload", (event) => {
     if (!state.dirty && !state.saving) return;
     event.preventDefault();
     event.returnValue = "";
   });
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  }
 }
 
 function initTheme() {
@@ -127,6 +178,37 @@ function setTheme(theme, animate) {
   setInlineIcon(els.themeToggleButton, theme === "dark" ? "icon-sun" : "icon-moon");
 }
 
+function initSecurityPreferences() {
+  const savedAutoLock = Number(localStorage.getItem(AUTO_LOCK_KEY) || "5");
+  state.autoLockMinutes = Number.isFinite(savedAutoLock) ? savedAutoLock : 5;
+  els.autoLockSelect.value = String(state.autoLockMinutes);
+
+  state.cacheDisabled = localStorage.getItem(CACHE_DISABLED_KEY) === "true";
+  els.localCacheToggle.checked = !state.cacheDisabled;
+}
+
+function saveAutoLockPreference() {
+  const minutes = Number(els.autoLockSelect.value);
+  state.autoLockMinutes = Number.isFinite(minutes) ? minutes : 5;
+  localStorage.setItem(AUTO_LOCK_KEY, String(state.autoLockMinutes));
+  markActivity();
+}
+
+function saveLocalCachePreference() {
+  state.cacheDisabled = !els.localCacheToggle.checked;
+  localStorage.setItem(CACHE_DISABLED_KEY, state.cacheDisabled ? "true" : "false");
+  if (state.cacheDisabled && state.user) {
+    localStorage.removeItem(getStorageKey(state.user.id));
+    els.saveStatus.textContent = "已关闭本地缓存";
+  } else if (state.user && state.vault && state.key) {
+    saveVaultNow(false);
+  }
+}
+
+function markActivity() {
+  state.lastActivityAt = Date.now();
+}
+
 async function authenticate(mode) {
   if (state.authenticating) return;
 
@@ -149,21 +231,32 @@ async function authenticate(mode) {
 
   try {
     const authSecret = await makeAuthSecret(email, password);
-    const data = await postJson(`/api/auth/${mode}`, { email, authSecret });
+    const payload = { email, authSecret };
+    if (mode === "register") {
+      payload.inviteToken = els.inviteToken.value.trim();
+    }
+    const data = await postJson(`/api/auth/${mode}`, payload);
     state.user = data.user;
     localStorage.setItem(LAST_EMAIL_KEY, email);
 
-    const envelope = await loadBestEnvelope();
-    if (envelope) {
-      await openEnvelope(password, envelope);
+    const selected = await loadBestEnvelope();
+    if (selected.envelope) {
+      await openEnvelope(password, selected.envelope);
+      state.remoteRevision = selected.remoteRevision;
     } else {
       await createEmptyVault(password);
+      state.remoteRevision = null;
     }
 
     showVault();
     renderEntries();
     selectEntry(state.vault.entries[0]?.id || null);
-    await saveVaultNow(false);
+    if (selected.source === "local") {
+      state.dirty = true;
+      els.saveStatus.textContent = "本地版本较新，尚未同步";
+    } else {
+      await saveVaultNow(false);
+    }
     els.loginPassword.value = "";
     setUnlockMessage("");
   } catch (error) {
@@ -197,9 +290,28 @@ async function makeAuthSecret(email, password) {
 }
 
 async function loadBestEnvelope() {
-  const remoteEnvelope = await fetchRemoteEnvelope();
-  if (remoteEnvelope) return remoteEnvelope;
-  return readLocalEnvelope();
+  const remote = await fetchRemoteVault();
+  const localEnvelope = readLocalEnvelope();
+  if (!remote.envelope && !localEnvelope) {
+    return { envelope: null, remoteRevision: null, source: "empty" };
+  }
+  if (!remote.envelope) {
+    return { envelope: localEnvelope, remoteRevision: localEnvelope?.remoteRevision || null, source: "local" };
+  }
+  if (!localEnvelope) {
+    return { envelope: remote.envelope, remoteRevision: remote.revision, source: "remote" };
+  }
+
+  const localTime = envelopeTimestamp(localEnvelope);
+  const remoteTime = envelopeTimestamp(remote.envelope, remote.updatedAt);
+  if (localTime > remoteTime) {
+    const useLocal = confirm("本地加密副本比 Cloudflare 上的版本更新。使用本地版本并稍后同步？");
+    if (useLocal) {
+      return { envelope: localEnvelope, remoteRevision: remote.revision, source: "local" };
+    }
+  }
+
+  return { envelope: remote.envelope, remoteRevision: remote.revision, source: "remote" };
 }
 
 async function openEnvelope(password, envelope) {
@@ -278,7 +390,10 @@ function showVault() {
 async function logoutVault() {
   clearTimeout(state.saveTimer);
   if (state.vault && state.key) {
-    await saveVaultNow(false);
+    const saved = await saveVaultNow(false);
+    if (!saved && state.dirty && !confirm("保险箱尚未同步到 Cloudflare，仍要退出？本地加密副本会尽量保留。")) {
+      return;
+    }
   }
 
   try {
@@ -297,8 +412,10 @@ function lockVault() {
   state.salt = null;
   state.selectedId = null;
   state.dirty = false;
+  state.remoteRevision = null;
   state.passwordVisible = false;
   state.totpVisible = false;
+  clearTimeout(state.clipboardClearTimer);
 
   els.entryForm.reset();
   resetSecretVisibility();
@@ -313,26 +430,28 @@ function lockVault() {
   els.saveStatus.textContent = "未解锁";
   els.totpCode.textContent = "------";
   els.totpTimerBar.style.width = "0";
+  updatePasswordStatus();
 }
 
 function lockIfHiddenTooLong() {
-  if (document.visibilityState !== "hidden" || !state.vault) return;
+  if (document.visibilityState !== "hidden" || !state.vault || state.autoLockMinutes <= 0) return;
   const hiddenAt = Number(sessionStorage.getItem("vault.hidden-at") || "0");
   if (!hiddenAt) {
     sessionStorage.setItem("vault.hidden-at", String(Date.now()));
     return;
   }
-  if (Date.now() - hiddenAt > 5 * 60 * 1000) {
+  if (Date.now() - hiddenAt > state.autoLockMinutes * 60 * 1000) {
     sessionStorage.removeItem("vault.hidden-at");
     lockVault();
   }
 }
 
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") {
-    sessionStorage.removeItem("vault.hidden-at");
+function lockIfIdleTooLong() {
+  if (!state.vault || state.autoLockMinutes <= 0) return;
+  if (Date.now() - state.lastActivityAt > state.autoLockMinutes * 60 * 1000) {
+    lockVault();
   }
-});
+}
 
 function renderEntries() {
   if (!state.vault) return;
@@ -357,11 +476,18 @@ function renderEntries() {
   if (!entries.length) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
-    empty.innerHTML = `
-      <svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-search"></use></svg>
-      <strong>${query ? "没有匹配账号" : "还没有账号"}</strong>
-      <span>${query ? "换个关键词试试" : "点击右上角新增账号"}</span>
-    `;
+    const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+    const title = document.createElement("strong");
+    const hint = document.createElement("span");
+    icon.classList.add("icon");
+    icon.setAttribute("aria-hidden", "true");
+    icon.setAttribute("focusable", "false");
+    use.setAttribute("href", "#icon-search");
+    icon.append(use);
+    title.textContent = query ? "没有匹配账号" : "还没有账号";
+    hint.textContent = query ? "换个关键词试试" : "点击右上角新增账号";
+    empty.append(icon, title, hint);
     els.entryList.append(empty);
     return;
   }
@@ -398,6 +524,7 @@ function selectEntry(id) {
   }
 
   renderEntries();
+  updatePasswordStatus();
   updateTotpDisplay();
 }
 
@@ -422,12 +549,21 @@ function handleEntryInput() {
   entry.backupPhone = els.entryBackupPhone.value;
   entry.tags = els.entryTags.value;
   entry.password = els.entryPassword.value;
-  entry.totpSecret = els.entryTotpSecret.value;
+  const totp = parseTotpInput(els.entryTotpSecret.value);
+  if (totp.secret !== els.entryTotpSecret.value) {
+    els.entryTotpSecret.value = totp.secret;
+  }
+  if (totp.label && !entry.name.trim()) {
+    entry.name = totp.label;
+    els.entryName.value = totp.label;
+  }
+  entry.totpSecret = totp.secret;
   entry.recoveryCodes = els.entryRecoveryCodes.value;
   entry.notes = els.entryNotes.value;
   entry.updatedAt = new Date().toISOString();
 
   renderEntries();
+  updatePasswordStatus();
   markDirty();
 }
 
@@ -468,6 +604,37 @@ function deleteSelectedEntry() {
   markDirty();
 }
 
+function fillGeneratedPassword() {
+  const entry = getSelectedEntry();
+  if (!entry) return;
+
+  const password = generatePassword(GENERATED_PASSWORD_LENGTH);
+  els.entryPassword.value = password;
+  entry.password = password;
+  entry.updatedAt = new Date().toISOString();
+  updatePasswordStatus();
+  markDirty();
+}
+
+function updatePasswordStatus() {
+  if (!hasDocument || !els.passwordStrength) return;
+  const entry = getSelectedEntry();
+  const password = entry?.password || els.entryPassword?.value || "";
+  if (!password) {
+    els.passwordStrength.textContent = "未填写密码";
+    els.passwordStrength.dataset.level = "empty";
+    return;
+  }
+
+  const strength = scorePassword(password);
+  const duplicateCount = state.vault
+    ? state.vault.entries.filter((item) => item.id !== entry?.id && item.password && item.password === password).length
+    : 0;
+  const duplicateText = duplicateCount ? `，与 ${duplicateCount} 个账号重复` : "";
+  els.passwordStrength.textContent = `${strength.label}${duplicateText}`;
+  els.passwordStrength.dataset.level = duplicateCount ? "duplicate" : strength.level;
+}
+
 function togglePassword() {
   state.passwordVisible = !state.passwordVisible;
   els.entryPassword.type = state.passwordVisible ? "text" : "password";
@@ -491,7 +658,7 @@ function markDirty() {
 }
 
 async function saveVaultNow(manual) {
-  if (!state.user || !state.vault || !state.key || state.saving) return;
+  if (!state.user || !state.vault || !state.key || state.saving) return false;
 
   clearTimeout(state.saveTimer);
   state.saveTimer = null;
@@ -501,13 +668,21 @@ async function saveVaultNow(manual) {
   try {
     state.vault.updatedAt = new Date().toISOString();
     const envelope = await encryptVault(state.vault, state.key);
-    localStorage.setItem(getStorageKey(state.user.id), JSON.stringify(envelope));
-    await putRemoteEnvelope(envelope);
+    envelope.remoteRevision = state.remoteRevision;
+    writeLocalEnvelope(envelope);
+    const saved = await putRemoteEnvelope(envelope, state.remoteRevision);
+    state.remoteRevision = saved.revision;
+    envelope.remoteRevision = saved.revision;
+    envelope.updatedAt = saved.updatedAt || envelope.updatedAt;
+    writeLocalEnvelope(envelope);
     state.dirty = false;
     els.saveStatus.textContent = "已同步到 Cloudflare";
+    return true;
   } catch (error) {
+    state.dirty = true;
     els.saveStatus.textContent = error.message || "保存失败";
     if (manual) alert(els.saveStatus.textContent);
+    return false;
   } finally {
     state.saving = false;
     updateBusyControls();
@@ -523,20 +698,22 @@ async function pullRemoteVault() {
     state.pulling = true;
     updateBusyControls();
     els.saveStatus.textContent = "正在拉取…";
-    const envelope = await fetchRemoteEnvelope();
-    if (!envelope) {
+    const remote = await fetchRemoteVault();
+    if (!remote.envelope) {
       els.saveStatus.textContent = "远端没有保险箱";
       return;
     }
 
-    if (envelope.kdf.salt !== bytesToBase64(state.salt)) {
+    if (remote.envelope.kdf.salt !== bytesToBase64(state.salt)) {
       els.saveStatus.textContent = "远端保险箱需要重新登录解锁";
       return;
     }
 
-    state.vault = normalizeVault(await decryptVault(envelope, state.key));
+    state.vault = normalizeVault(await decryptVault(remote.envelope, state.key));
+    state.remoteRevision = remote.revision;
     state.dirty = false;
-    localStorage.setItem(getStorageKey(state.user.id), JSON.stringify(envelope));
+    remote.envelope.remoteRevision = remote.revision;
+    writeLocalEnvelope(remote.envelope);
     renderEntries();
     selectEntry(state.vault.entries[0]?.id || null);
     els.saveStatus.textContent = "已拉取远端密文";
@@ -548,24 +725,120 @@ async function pullRemoteVault() {
   }
 }
 
-async function fetchRemoteEnvelope() {
+async function exportVaultBackup() {
+  if (!state.user || !state.vault || !state.key) return;
+
+  try {
+    const envelope = await encryptVault(state.vault, state.key);
+    envelope.remoteRevision = state.remoteRevision;
+    const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `account-vault-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    els.saveStatus.textContent = "已导出加密备份";
+  } catch (error) {
+    els.saveStatus.textContent = error.message || "导出失败";
+  }
+}
+
+async function importVaultBackup() {
+  const file = els.importFileInput.files?.[0];
+  els.importFileInput.value = "";
+  if (!file || !state.user) return;
+
+  try {
+    const envelope = JSON.parse(await file.text());
+    if (!isVaultEnvelope(envelope)) {
+      throw new Error("备份文件不是有效的保险箱密文。");
+    }
+
+    const password = prompt("输入当前主密码以解密备份。");
+    if (!password) return;
+
+    const salt = base64ToBytes(envelope.kdf.salt);
+    const key = await deriveVaultKey(password, salt, envelope.kdf.iterations);
+    const vault = normalizeVault(await decryptVault(envelope, key));
+    if (!confirm("导入会替换当前保险箱内容。继续？")) return;
+
+    state.vault = vault;
+    state.key = key;
+    state.salt = salt;
+    state.iterations = envelope.kdf.iterations;
+    state.remoteRevision = envelope.remoteRevision || state.remoteRevision;
+    state.dirty = true;
+    renderEntries();
+    selectEntry(state.vault.entries[0]?.id || null);
+    await saveVaultNow(true);
+  } catch (error) {
+    els.saveStatus.textContent = error.message || "导入失败";
+  }
+}
+
+async function changeMasterPassword() {
+  if (!state.user || !state.vault) return;
+
+  const currentPassword = prompt("输入当前主密码。");
+  if (!currentPassword) return;
+  const nextPassword = prompt("输入新的主密码，至少 10 个字符。");
+  if (!nextPassword) return;
+  if (nextPassword.length < 10) {
+    alert("新主密码至少需要 10 个字符。");
+    return;
+  }
+  const repeatedPassword = prompt("再次输入新的主密码。");
+  if (nextPassword !== repeatedPassword) {
+    alert("两次输入的新主密码不一致。");
+    return;
+  }
+
+  try {
+    els.saveStatus.textContent = "正在修改主密码…";
+    const authSecret = await makeAuthSecret(state.user.email, currentPassword);
+    const newAuthSecret = await makeAuthSecret(state.user.email, nextPassword);
+    await postJson("/api/auth/change-password", { authSecret, newAuthSecret });
+
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    state.key = await deriveVaultKey(nextPassword, salt, KDF_ITERATIONS);
+    state.salt = salt;
+    state.iterations = KDF_ITERATIONS;
+    state.dirty = true;
+    const saved = await saveVaultNow(true);
+    els.saveStatus.textContent = saved ? "主密码已修改并同步" : "主密码已修改，本地密文尚未同步";
+  } catch (error) {
+    els.saveStatus.textContent = error.message || "主密码修改失败";
+  }
+}
+
+async function fetchRemoteVault() {
   const response = await fetch("/api/vault", { credentials: "same-origin" });
   const data = await readJsonResponse(response);
   if (!response.ok) throw new Error(data.error || "远端读取失败。");
-  return data.envelope;
+  return {
+    envelope: data.envelope || null,
+    updatedAt: data.updatedAt || null,
+    revision: data.revision || null,
+  };
 }
 
-async function putRemoteEnvelope(envelope) {
+async function putRemoteEnvelope(envelope, baseRevision) {
   const response = await fetch("/api/vault", {
     method: "PUT",
     credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(envelope),
+    body: JSON.stringify({ envelope, baseRevision }),
   });
   const data = await readJsonResponse(response);
-  if (!response.ok) throw new Error(data.error || "远端保存失败。");
+  if (!response.ok) {
+    const error = new Error(data.error || "远端保存失败。");
+    error.status = response.status;
+    error.data = data;
+    throw error;
+  }
   return data;
 }
 
@@ -619,6 +892,26 @@ async function saveAdminSettings() {
   }
 }
 
+async function createInvite() {
+  try {
+    els.adminSettingsStatus.textContent = "正在生成邀请链接...";
+    const response = await fetch("/api/admin/invites", {
+      method: "POST",
+      credentials: "same-origin",
+    });
+    const data = await readJsonResponse(response);
+    if (!response.ok) throw new Error(data.error || "无法生成邀请链接。");
+
+    const inviteUrl = new URL(location.href);
+    inviteUrl.searchParams.set("invite", data.token);
+    els.inviteLink.value = inviteUrl.toString();
+    await copyText(inviteUrl.toString());
+    els.adminSettingsStatus.textContent = "邀请链接已生成并复制";
+  } catch (error) {
+    els.adminSettingsStatus.textContent = error.message || "邀请链接生成失败";
+  }
+}
+
 async function readJsonResponse(response) {
   try {
     return await response.json();
@@ -628,7 +921,7 @@ async function readJsonResponse(response) {
 }
 
 function readLocalEnvelope() {
-  if (!state.user) return null;
+  if (!state.user || state.cacheDisabled) return null;
   const raw = localStorage.getItem(getStorageKey(state.user.id));
   if (!raw) return null;
   try {
@@ -638,8 +931,23 @@ function readLocalEnvelope() {
   }
 }
 
+function writeLocalEnvelope(envelope) {
+  if (!state.user) return;
+  if (state.cacheDisabled) {
+    localStorage.removeItem(getStorageKey(state.user.id));
+    return;
+  }
+  localStorage.setItem(getStorageKey(state.user.id), JSON.stringify(envelope));
+}
+
 function getStorageKey(userId) {
   return `${STORAGE_PREFIX}${userId}`;
+}
+
+function envelopeTimestamp(envelope, fallback = null) {
+  const value = envelope?.updatedAt || fallback;
+  const timestamp = Date.parse(value || "");
+  return Number.isNaN(timestamp) ? 0 : timestamp;
 }
 
 async function deriveVaultKey(password, salt, iterations) {
@@ -730,9 +1038,9 @@ async function updateTotpDisplay() {
   }
 }
 
-async function generateTotp(secret) {
+async function generateTotp(secret, timestamp = Date.now()) {
   const keyBytes = base32ToBytes(secret);
-  const counter = Math.floor(Date.now() / 1000 / 30);
+  const counter = Math.floor(timestamp / 1000 / 30);
   const buffer = new ArrayBuffer(8);
   const view = new DataView(buffer);
   view.setUint32(0, Math.floor(counter / 0x100000000), false);
@@ -775,6 +1083,80 @@ function base32ToBytes(input) {
   return new Uint8Array(bytes);
 }
 
+function parseTotpInput(input) {
+  const value = String(input || "").trim();
+  if (!value.toLowerCase().startsWith("otpauth://")) {
+    return { secret: value, label: "" };
+  }
+
+  try {
+    const url = new URL(value);
+    const secret = url.searchParams.get("secret") || "";
+    const issuer = url.searchParams.get("issuer") || "";
+    const label = decodeURIComponent(url.pathname.replace(/^\/+/, ""));
+    return {
+      secret: secret.replace(/\s/g, "").toUpperCase(),
+      label: issuer || label,
+    };
+  } catch {
+    return { secret: value, label: "" };
+  }
+}
+
+function generatePassword(length = GENERATED_PASSWORD_LENGTH) {
+  length = Math.max(4, Number(length) || GENERATED_PASSWORD_LENGTH);
+  const groups = [
+    "ABCDEFGHJKLMNPQRSTUVWXYZ",
+    "abcdefghijkmnopqrstuvwxyz",
+    "23456789",
+    "!@#$%^&*()-_=+[]{}:,.?",
+  ];
+  const all = groups.join("");
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
+  const chars = groups.map((group, index) => group[bytes[index] % group.length]);
+
+  for (let index = chars.length; index < length; index += 1) {
+    chars.push(all[bytes[index] % all.length]);
+  }
+
+  for (let index = chars.length - 1; index > 0; index -= 1) {
+    const swapIndex = bytes[index] % (index + 1);
+    [chars[index], chars[swapIndex]] = [chars[swapIndex], chars[index]];
+  }
+
+  return chars.join("");
+}
+
+function scorePassword(password) {
+  const value = String(password || "");
+  let score = 0;
+  if (value.length >= 12) score += 1;
+  if (value.length >= 16) score += 1;
+  if (/[a-z]/.test(value) && /[A-Z]/.test(value)) score += 1;
+  if (/\d/.test(value)) score += 1;
+  if (/[^A-Za-z0-9]/.test(value)) score += 1;
+  if (/(.)\1{2,}/.test(value)) score -= 1;
+
+  if (score >= 5) return { level: "strong", label: "强密码" };
+  if (score >= 3) return { level: "medium", label: "中等强度" };
+  return { level: "weak", label: "弱密码" };
+}
+
+function isVaultEnvelope(value) {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      value.version === 1 &&
+      value.kdf?.name === "PBKDF2-SHA256" &&
+      Number.isInteger(value.kdf.iterations) &&
+      value.kdf.iterations >= 100000 &&
+      typeof value.kdf.salt === "string" &&
+      value.cipher?.name === "AES-GCM" &&
+      typeof value.cipher.iv === "string" &&
+      typeof value.cipher.data === "string",
+  );
+}
+
 async function copyInputValue(inputId) {
   const input = $(inputId);
   if (!input?.value) {
@@ -783,13 +1165,34 @@ async function copyInputValue(inputId) {
   }
 
   try {
-    await navigator.clipboard.writeText(input.value);
+    await copyText(input.value);
     els.saveStatus.textContent = "已复制";
   } catch {
     input.select();
     document.execCommand("copy");
     els.saveStatus.textContent = "已复制";
   }
+}
+
+async function copyText(text) {
+  if (!navigator.clipboard?.writeText) return;
+  await navigator.clipboard.writeText(text);
+  scheduleClipboardClear(text);
+}
+
+function scheduleClipboardClear(value) {
+  clearTimeout(state.clipboardClearTimer);
+  if (!navigator.clipboard?.readText || !navigator.clipboard?.writeText) return;
+
+  state.clipboardClearTimer = setTimeout(async () => {
+    try {
+      if ((await navigator.clipboard.readText()) === value) {
+        await navigator.clipboard.writeText("");
+      }
+    } catch {
+      // Clipboard read permission is browser-controlled.
+    }
+  }, CLIPBOARD_CLEAR_MS);
 }
 
 function normalizeEmail(email) {
@@ -843,3 +1246,15 @@ function resetSecretVisibility() {
   setInlineLabel(els.toggleTotpButton, "显示");
   setInlineIcon(els.toggleTotpButton, "icon-eye");
 }
+
+export {
+  base32ToBytes,
+  bytesToBase64,
+  generatePassword,
+  generateTotp,
+  isVaultEnvelope,
+  makeAuthSecret,
+  normalizeEmail,
+  parseTotpInput,
+  scorePassword,
+};
