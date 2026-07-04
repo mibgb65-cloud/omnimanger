@@ -259,6 +259,37 @@ test("change password invalidates old login and accepts new login", async () => 
   assert.equal(vault.envelope.cipher.data, "bmV3LXBhc3N3b3JkLWNpcGhlcg==");
 });
 
+test("logout all revokes existing session cookies", async () => {
+  const env = makeEnv();
+  const password = "correct horse battery";
+  const registered = await register(env, "admin@example.com", password);
+  const firstCookie = sessionCookie(registered);
+  const authSecret = await makeAuthSecret("admin@example.com", password);
+  const secondLogin = await worker.fetch(
+    jsonRequest("/api/auth/login", { email: "admin@example.com", authSecret }),
+    env,
+  );
+  assert.equal(secondLogin.status, 200);
+  const secondCookie = sessionCookie(secondLogin);
+
+  const revoked = await worker.fetch(
+    new Request("https://vault.test/api/auth/logout-all", {
+      method: "POST",
+      headers: { Cookie: secondCookie },
+    }),
+    env,
+  );
+  assert.equal(revoked.status, 200);
+
+  const staleVault = await worker.fetch(
+    new Request("https://vault.test/api/vault", {
+      headers: { Cookie: firstCookie },
+    }),
+    env,
+  );
+  assert.equal(staleVault.status, 401);
+});
+
 test("change password rejects stale revisions without changing login secret", async () => {
   const env = makeEnv();
   const oldPassword = "correct horse battery";

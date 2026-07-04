@@ -3,6 +3,7 @@ const LAST_EMAIL_KEY = "account-secret-vault.last-email";
 const THEME_KEY = "account-secret-vault.theme";
 const AUTO_LOCK_KEY = "account-secret-vault.auto-lock-minutes";
 const CACHE_DISABLED_KEY = "account-secret-vault.cache-disabled";
+const PASSWORD_OPTIONS_KEY = "account-secret-vault.password-options";
 const KDF_ITERATIONS = 310000;
 const AUTH_KDF_ITERATIONS = 120000;
 const CLIPBOARD_CLEAR_MS = 30_000;
@@ -71,6 +72,7 @@ const els = hasDocument
       unlockMessage: $("unlockMessage"),
       lockStatus: $("lockStatus"),
       syncStatus: $("syncStatus"),
+      sessionStatus: $("sessionStatus"),
       saveStatus: $("saveStatus"),
       searchInput: $("searchInput"),
       addEntryButton: $("addEntryButton"),
@@ -88,6 +90,10 @@ const els = hasDocument
       entryPassword: $("entryPassword"),
       passwordStrength: $("passwordStrength"),
       generatePasswordButton: $("generatePasswordButton"),
+      generateCopyPasswordButton: $("generateCopyPasswordButton"),
+      passwordLengthInput: $("passwordLengthInput"),
+      passwordSymbolsToggle: $("passwordSymbolsToggle"),
+      passwordReadableToggle: $("passwordReadableToggle"),
       entryTotpSecret: $("entryTotpSecret"),
       entryRecoveryCodes: $("entryRecoveryCodes"),
       entryNotes: $("entryNotes"),
@@ -98,6 +104,7 @@ const els = hasDocument
       importButton: $("importButton"),
       exportButton: $("exportButton"),
       changePasswordButton: $("changePasswordButton"),
+      logoutAllButton: $("logoutAllButton"),
       autoLockSelect: $("autoLockSelect"),
       localCacheToggle: $("localCacheToggle"),
       pullButton: $("pullButton"),
@@ -127,6 +134,7 @@ function init() {
   initDecorativeIcons();
   initTheme();
   initSecurityPreferences();
+  initPasswordGeneratorOptions();
   initConnectivity();
   els.loginEmail.value = localStorage.getItem(LAST_EMAIL_KEY) || "";
   const inviteToken = new URLSearchParams(location.search).get("invite") || "";
@@ -161,6 +169,10 @@ function init() {
   els.entryList.addEventListener("keydown", handleEntryListKeydown);
   els.entryForm.addEventListener("input", handleEntryInput);
   els.generatePasswordButton.addEventListener("click", fillGeneratedPassword);
+  els.generateCopyPasswordButton.addEventListener("click", generateAndCopyPassword);
+  els.passwordLengthInput.addEventListener("change", savePasswordGeneratorOptions);
+  els.passwordSymbolsToggle.addEventListener("change", savePasswordGeneratorOptions);
+  els.passwordReadableToggle.addEventListener("change", savePasswordGeneratorOptions);
   els.togglePasswordButton.addEventListener("click", togglePassword);
   els.toggleTotpButton.addEventListener("click", toggleTotp);
   els.deleteEntryButton.addEventListener("click", deleteSelectedEntry);
@@ -168,6 +180,7 @@ function init() {
   els.importFileInput.addEventListener("change", importVaultBackup);
   els.exportButton.addEventListener("click", exportVaultBackup);
   els.changePasswordButton.addEventListener("click", changeMasterPassword);
+  els.logoutAllButton.addEventListener("click", logoutAllSessions);
   els.autoLockSelect.addEventListener("change", saveAutoLockPreference);
   els.localCacheToggle.addEventListener("change", saveLocalCachePreference);
   els.saveButton.addEventListener("click", () => saveVaultNow(true));
@@ -190,6 +203,10 @@ function init() {
   }
 
   document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      hideVisibleSecrets();
+      return;
+    }
     if (document.visibilityState === "visible") {
       sessionStorage.removeItem("vault.hidden-at");
       markActivity();
@@ -239,6 +256,34 @@ function initSecurityPreferences() {
 
   state.cacheDisabled = localStorage.getItem(CACHE_DISABLED_KEY) === "true";
   els.localCacheToggle.checked = !state.cacheDisabled;
+  updateSessionStatus();
+}
+
+function initPasswordGeneratorOptions() {
+  let options = {};
+  try {
+    options = JSON.parse(localStorage.getItem(PASSWORD_OPTIONS_KEY) || "{}");
+  } catch {
+    options = {};
+  }
+
+  els.passwordLengthInput.value = String(normalizePasswordLength(options.length));
+  els.passwordSymbolsToggle.checked = options.symbols !== false;
+  els.passwordReadableToggle.checked = options.readable !== false;
+}
+
+function savePasswordGeneratorOptions() {
+  const options = getPasswordGeneratorOptions();
+  localStorage.setItem(PASSWORD_OPTIONS_KEY, JSON.stringify(options));
+  els.passwordLengthInput.value = String(options.length);
+}
+
+function getPasswordGeneratorOptions() {
+  return {
+    length: normalizePasswordLength(els.passwordLengthInput.value),
+    symbols: els.passwordSymbolsToggle.checked,
+    readable: els.passwordReadableToggle.checked,
+  };
 }
 
 function initConnectivity() {
@@ -266,6 +311,7 @@ function saveAutoLockPreference() {
   state.autoLockMinutes = Number.isFinite(minutes) ? minutes : 5;
   localStorage.setItem(AUTO_LOCK_KEY, String(state.autoLockMinutes));
   markActivity();
+  updateSessionStatus();
   showToast("自动锁定已更新", { message: state.autoLockMinutes ? `${state.autoLockMinutes} 分钟` : "已关闭" });
 }
 
@@ -284,6 +330,13 @@ function saveLocalCachePreference() {
 
 function markActivity() {
   state.lastActivityAt = Date.now();
+}
+
+function updateSessionStatus() {
+  if (!hasDocument || !els.sessionStatus) return;
+  const label = state.autoLockMinutes > 0 ? `自动锁定 ${state.autoLockMinutes} 分钟` : "自动锁定关闭";
+  setInlineLabel(els.sessionStatus, label);
+  setInlineIcon(els.sessionStatus, state.autoLockMinutes > 0 ? "icon-clock" : "icon-unlock");
 }
 
 function setAuthMode(mode) {
@@ -482,6 +535,8 @@ function showVault() {
   setInlineIcon(els.lockStatus, "icon-unlock");
   setInlineLabel(els.syncStatus, state.user.email);
   els.syncStatus.classList.remove("neutral");
+  els.sessionStatus.classList.remove("hidden");
+  updateSessionStatus();
 
   if (state.user.isAdmin) {
     els.adminPanel.classList.remove("hidden");
@@ -684,6 +739,26 @@ async function logoutVault() {
   lockVault();
 }
 
+async function logoutAllSessions() {
+  if (!state.user) return;
+  const confirmed = await confirmDialog("这会让其他浏览器和设备上的登录状态失效，本机也会退出。继续？", {
+    title: "退出所有设备",
+    confirmLabel: "退出所有设备",
+    danger: true,
+  });
+  if (!confirmed) return;
+
+  try {
+    const response = await fetch("/api/auth/logout-all", { method: "POST", credentials: "same-origin" });
+    const data = await readJsonResponse(response);
+    if (!response.ok) throw new Error(data.error || "无法退出所有设备。");
+    showToast("已退出所有设备", { tone: "success" });
+    lockVault();
+  } catch (error) {
+    showToast("退出所有设备失败", { message: error.message || "请稍后重试。", tone: "danger" });
+  }
+}
+
 function lockVault() {
   state.user = null;
   state.vault = null;
@@ -712,6 +787,7 @@ function lockVault() {
   setInlineIcon(els.lockStatus, "icon-lock");
   setInlineLabel(els.syncStatus, "Signed out");
   els.syncStatus.classList.add("neutral");
+  els.sessionStatus.classList.add("hidden");
   setSaveStatus("未解锁", "locked");
   els.totpCode.textContent = "------";
   els.totpTimerBar.style.width = "0";
@@ -917,12 +993,19 @@ function fillGeneratedPassword() {
   const entry = getSelectedEntry();
   if (!entry) return;
 
-  const password = generatePassword(GENERATED_PASSWORD_LENGTH);
+  savePasswordGeneratorOptions();
+  const password = generatePassword(getPasswordGeneratorOptions());
   els.entryPassword.value = password;
   entry.password = password;
   entry.updatedAt = new Date().toISOString();
   updatePasswordStatus();
   markDirty();
+  showToast("已生成新密码", { message: `${password.length} 位`, tone: "success" });
+}
+
+async function generateAndCopyPassword() {
+  fillGeneratedPassword();
+  await copyInputValue("entryPassword", els.generateCopyPasswordButton);
 }
 
 function updatePasswordStatus() {
@@ -988,6 +1071,11 @@ function hideSecret(kind) {
   }
 }
 
+function hideVisibleSecrets() {
+  hideSecret("password");
+  hideSecret("totp");
+}
+
 function markDirty() {
   if (!state.vault) return;
   state.dirty = true;
@@ -1032,7 +1120,11 @@ async function saveVaultNow(manual) {
     const message = conflict ? "远端有更新，需先拉取" : error.message || "保存失败";
     setSaveStatus(message, conflict ? "conflict" : "error");
     showToast(conflict ? "保存冲突" : "保存失败", { message, tone: "danger" });
-    if (manual) await alertDialog(message, { title: conflict ? "保存冲突" : "保存失败" });
+    if (conflict && manual) {
+      await resolveSaveConflict();
+    } else if (manual) {
+      await alertDialog(message, { title: "保存失败" });
+    }
     return false;
   } finally {
     state.saving = false;
@@ -1040,7 +1132,24 @@ async function saveVaultNow(manual) {
   }
 }
 
-async function pullRemoteVault() {
+async function resolveSaveConflict() {
+  const pullRemote = await confirmDialog("Cloudflare 上已有更新。拉取远端会替换当前未同步的本地修改。", {
+    title: "保存冲突",
+    confirmLabel: "拉取远端",
+    cancelLabel: "保留本地",
+    danger: true,
+  });
+
+  if (pullRemote) {
+    await pullRemoteVault({ skipDirtyConfirm: true });
+    return;
+  }
+
+  setSaveStatus("本地修改已保留，尚未同步", "conflict");
+  showToast("已保留本地修改", { message: "可以先导出备份，再决定是否拉取远端。", tone: "warning" });
+}
+
+async function pullRemoteVault(options = {}) {
   if (!state.user || !state.key) return;
   if (state.pulling) return;
   if (!state.online) {
@@ -1050,6 +1159,7 @@ async function pullRemoteVault() {
   }
   if (
     state.dirty &&
+    !options.skipDirtyConfirm &&
     !(await confirmDialog("当前有未保存修改，继续拉取会覆盖本地内容。继续？", {
       title: "拉取远端密文",
       confirmLabel: "继续拉取",
@@ -1694,14 +1804,29 @@ function parseTotpInput(input) {
   }
 }
 
-function generatePassword(length = GENERATED_PASSWORD_LENGTH) {
-  length = Math.max(4, Number(length) || GENERATED_PASSWORD_LENGTH);
-  const groups = [
-    "ABCDEFGHJKLMNPQRSTUVWXYZ",
-    "abcdefghijkmnopqrstuvwxyz",
-    "23456789",
-    "!@#$%^&*()-_=+[]{}:,.?",
-  ];
+function normalizePasswordLength(length) {
+  const value = Number.parseInt(String(length), 10);
+  if (!Number.isFinite(value)) return GENERATED_PASSWORD_LENGTH;
+  return Math.min(64, Math.max(12, value));
+}
+
+function normalizePasswordOptions(lengthOrOptions = GENERATED_PASSWORD_LENGTH) {
+  const options =
+    typeof lengthOrOptions === "object" && lengthOrOptions !== null ? lengthOrOptions : { length: lengthOrOptions };
+  return {
+    length: normalizePasswordLength(options.length),
+    symbols: options.symbols !== false,
+    readable: options.readable !== false,
+  };
+}
+
+function generatePassword(lengthOrOptions = GENERATED_PASSWORD_LENGTH) {
+  const options = normalizePasswordOptions(lengthOrOptions);
+  const letterGroups = options.readable
+    ? ["ABCDEFGHJKLMNPQRSTUVWXYZ", "abcdefghijkmnopqrstuvwxyz", "23456789"]
+    : ["ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz", "0123456789"];
+  const groups = options.symbols ? [...letterGroups, "!@#$%^&*()-_=+[]{}:,.?"] : letterGroups;
+  const length = Math.max(options.length, groups.length);
   const all = groups.join("");
   const bytes = crypto.getRandomValues(new Uint8Array(length));
   const chars = groups.map((group, index) => group[bytes[index] % group.length]);
@@ -1895,6 +2020,7 @@ function updateBusyControls() {
   els.pullButton.disabled = state.saving || state.pulling || !state.online;
   els.lockButton.disabled = state.saving;
   els.changePasswordButton.disabled = state.saving || state.pulling;
+  els.logoutAllButton.disabled = state.saving || state.pulling;
 }
 
 function resetSecretVisibility() {
@@ -1920,6 +2046,8 @@ export {
   isVaultEnvelope,
   makeAuthSecret,
   normalizeEmail,
+  normalizePasswordLength,
+  normalizePasswordOptions,
   parseTotpInput,
   scorePassword,
 };

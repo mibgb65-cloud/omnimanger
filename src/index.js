@@ -16,6 +16,7 @@ const RATE_LIMITS = {
   vaultWrite: { limit: 60, windowSeconds: 60 },
   adminSettings: { limit: 20, windowSeconds: 60 },
   passwordChange: { limit: 5, windowSeconds: 15 * 60 },
+  sessionRevoke: { limit: 5, windowSeconds: 15 * 60 },
 };
 
 const SECURITY_HEADERS = {
@@ -86,6 +87,20 @@ async function handleApi(request, env, url) {
 
   if (url.pathname === "/api/auth/logout" && request.method === "POST") {
     return logoutUser(url);
+  }
+
+  if (url.pathname === "/api/auth/logout-all" && request.method === "POST") {
+    const user = await requireSessionUser(request, env);
+    if (user instanceof Response) return user;
+    const limited = await enforceRateLimit(
+      env,
+      "session-revoke",
+      user.id,
+      RATE_LIMITS.sessionRevoke.limit,
+      RATE_LIMITS.sessionRevoke.windowSeconds,
+    );
+    if (limited) return limited;
+    return logoutAllSessions(env, user, url);
   }
 
   if (url.pathname === "/api/auth/change-password" && request.method === "POST") {
@@ -227,6 +242,7 @@ async function registerUser(request, env, url) {
     email,
     role: isAdminRegistration ? "admin" : "user",
     auth: authVerifier,
+    sessionVersion: createSessionVersion(),
     createdAt: now,
     updatedAt: now,
   };
@@ -291,6 +307,28 @@ async function loginUser(request, env, url) {
 }
 
 function logoutUser(url) {
+  return json(
+    { ok: true },
+    200,
+    {
+      "Set-Cookie": makeExpiredSessionCookie(url),
+    },
+  );
+}
+
+async function logoutAllSessions(env, user, url) {
+  const current = await getUserById(env, user.id);
+  if (!current) return json({ error: "Unauthorized." }, 401);
+  const updatedAt = new Date().toISOString();
+  await env.VAULT.put(
+    userKey(user.id),
+    JSON.stringify({
+      ...current,
+      sessionVersion: createSessionVersion(),
+      updatedAt,
+    }),
+  );
+  logSecurityEvent("sessions_revoked", { userId: user.id });
   return json(
     { ok: true },
     200,
@@ -522,7 +560,10 @@ async function getSessionUser(request, env) {
     return null;
   }
 
-  return getUserById(env, payload.sub);
+  const user = await getUserById(env, payload.sub);
+  if (!user) return null;
+  if ((payload.sv || "0") !== getSessionVersion(user)) return null;
+  return user;
 }
 
 async function requireSessionUser(request, env) {
@@ -541,6 +582,7 @@ async function createSessionResponse(data, user, env, url) {
   const payload = {
     sub: user.id,
     email: user.email,
+    sv: getSessionVersion(user),
     exp: Math.floor(Date.now() / 1000) + SESSION_MAX_AGE_SECONDS,
   };
   const payloadValue = base64UrlEncode(encoder.encode(JSON.stringify(payload)));
@@ -549,6 +591,14 @@ async function createSessionResponse(data, user, env, url) {
   return json(data, 200, {
     "Set-Cookie": makeSessionCookie(`${payloadValue}.${signature}`, url),
   });
+}
+
+function getSessionVersion(user) {
+  return typeof user.sessionVersion === "string" && user.sessionVersion ? user.sessionVersion : "0";
+}
+
+function createSessionVersion() {
+  return base64UrlEncode(crypto.getRandomValues(new Uint8Array(16)));
 }
 
 async function signSessionPayload(payloadValue, secret) {

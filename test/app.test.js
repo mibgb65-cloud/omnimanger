@@ -12,6 +12,8 @@ const {
   generateTotp,
   isVaultEnvelope,
   normalizeEmail,
+  normalizePasswordLength,
+  normalizePasswordOptions,
   parseTotpInput,
   scorePassword,
 } = await import("../public/app.js");
@@ -38,6 +40,24 @@ test("password generator creates a strong mixed password", () => {
   assert.match(password, /\d/);
   assert.match(password, /[^A-Za-z0-9]/);
   assert.equal(scorePassword(password).level, "strong");
+});
+
+test("password generator supports safer UI options", () => {
+  assert.equal(normalizePasswordLength(4), 12);
+  assert.equal(normalizePasswordLength(128), 64);
+  assert.deepEqual(normalizePasswordOptions({ length: 18, symbols: false, readable: true }), {
+    length: 18,
+    symbols: false,
+    readable: true,
+  });
+
+  const password = generatePassword({ length: 18, symbols: false, readable: true });
+  assert.equal(password.length, 18);
+  assert.match(password, /[a-z]/);
+  assert.match(password, /[A-Z]/);
+  assert.match(password, /\d/);
+  assert.doesNotMatch(password, /[^A-Za-z0-9]/);
+  assert.doesNotMatch(password, /[IOl01]/);
 });
 
 test("email normalization and envelope validation are deterministic", () => {
