@@ -3,7 +3,7 @@ const MAX_AUTH_BYTES = 4096;
 const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const REGISTRATION_SETTING_KEY = "settings:registration-open";
-const SERVER_AUTH_ITERATIONS = 210000;
+const AUTH_VERIFIER_VERSION = 3;
 const MIN_VAULT_KDF_ITERATIONS = 100000;
 const MAX_VAULT_KDF_ITERATIONS = 2000000;
 const INVITE_TTL_SECONDS = 7 * 24 * 60 * 60;
@@ -45,7 +45,8 @@ export default {
     if (url.pathname.startsWith("/api/")) {
       try {
         return await handleApi(request, env, url);
-      } catch {
+      } catch (error) {
+        logApiError(request, url, error);
         return json({ error: "Internal server error." }, 500);
       }
     }
@@ -219,7 +220,7 @@ async function registerUser(request, env, url) {
   }
 
   const authSalt = crypto.getRandomValues(new Uint8Array(16));
-  const authVerifier = await makeAuthVerifier(authSecret, authSalt);
+  const authVerifier = await makeAuthVerifier(env, authSecret, authSalt);
   const now = new Date().toISOString();
   const user = {
     id: crypto.randomUUID(),
@@ -236,6 +237,7 @@ async function registerUser(request, env, url) {
     await consumeInvite(env, inviteToken, user);
   }
 
+  logSecurityEvent("user_registered", { userId: user.id, role: user.role, invited: inviteAllowed });
   return createSessionResponse({ user: publicUser(user, env) }, user, env, url);
 }
 
@@ -269,11 +271,13 @@ async function loginUser(request, env, url) {
 
   const user = await getUserByEmail(env, email);
   if (!user) {
+    logSecurityEvent("login_failed", { reason: "unknown_user" });
     return json({ error: "Email or password is invalid." }, 401);
   }
 
-  const verified = await verifyAuthSecret(user, authSecret);
+  const verified = await verifyAuthSecret(env, user, authSecret);
   if (!verified) {
+    logSecurityEvent("login_failed", { reason: "bad_secret", userId: user.id });
     return json({ error: "Email or password is invalid." }, 401);
   }
 
@@ -282,6 +286,7 @@ async function loginUser(request, env, url) {
   }
 
   await recordUserActivity(env, verified.upgradedUser || user, { lastLoginAt: new Date().toISOString() });
+  logSecurityEvent("login_succeeded", { userId: user.id });
   return createSessionResponse({ user: publicUser(user, env) }, user, env, url);
 }
 
@@ -327,6 +332,7 @@ async function putVault(request, env, user) {
   const current = await env.VAULT.getWithMetadata(vaultKey(user.id), "text");
   const currentRevision = current.metadata?.revision ?? current.metadata?.updatedAt ?? null;
   if (current.value && baseRevision !== null && baseRevision !== currentRevision) {
+    logSecurityEvent("vault_revision_conflict", { userId: user.id });
     return json(
       {
         error: "Vault has changed on another device.",
@@ -349,30 +355,53 @@ async function putVault(request, env, user) {
 }
 
 async function changePassword(request, env, user) {
-  const body = await readJsonBody(request, MAX_AUTH_BYTES);
+  const body = await readJsonBody(request, MAX_VAULT_BYTES + MAX_AUTH_BYTES);
   if (body instanceof Response) return body;
 
   const authSecret = decodeAuthSecret(body.authSecret);
   const newAuthSecret = decodeAuthSecret(body.newAuthSecret);
-  if (!authSecret || !newAuthSecret) {
+  const envelope = body?.envelope;
+  const baseRevision = normalizeRevision(body?.baseRevision);
+  if (!authSecret || !newAuthSecret || !isVaultEnvelope(envelope)) {
     return json({ error: "Password change payload is invalid." }, 400);
   }
 
-  const verified = await verifyAuthSecret(user, authSecret);
+  const verified = await verifyAuthSecret(env, user, authSecret);
   if (!verified) {
     return json({ error: "Current password is invalid." }, 401);
   }
 
+  const current = await env.VAULT.getWithMetadata(vaultKey(user.id), "text");
+  const currentRevision = current.metadata?.revision ?? current.metadata?.updatedAt ?? null;
+  if (current.value && baseRevision !== null && baseRevision !== currentRevision) {
+    logSecurityEvent("password_change_revision_conflict", { userId: user.id });
+    return json(
+      {
+        error: "Vault has changed on another device.",
+        currentRevision,
+        updatedAt: current.metadata?.updatedAt ?? null,
+      },
+      409,
+    );
+  }
+
+  const updatedAt = new Date().toISOString();
+  const revision = crypto.randomUUID();
+  envelope.updatedAt = updatedAt;
   const nextUser = {
     ...(verified.upgradedUser || user),
-    auth: await makeAuthVerifier(newAuthSecret, crypto.getRandomValues(new Uint8Array(16))),
-    updatedAt: new Date().toISOString(),
+    auth: await makeAuthVerifier(env, newAuthSecret, crypto.getRandomValues(new Uint8Array(16))),
+    updatedAt,
   };
   delete nextUser.authHash;
   delete nextUser.authSalt;
 
+  await env.VAULT.put(vaultKey(user.id), JSON.stringify(envelope), {
+    metadata: { updatedAt, userId: user.id, revision },
+  });
   await env.VAULT.put(userKey(nextUser.id), JSON.stringify(nextUser));
-  return json({ ok: true });
+  logSecurityEvent("password_changed", { userId: user.id });
+  return json({ ok: true, updatedAt, revision });
 }
 
 async function getAdminSettings(env) {
@@ -390,6 +419,7 @@ async function putAdminSettings(request, env) {
   }
 
   await env.VAULT.put(REGISTRATION_SETTING_KEY, body.registrationOpen ? "true" : "false");
+  logSecurityEvent("admin_registration_setting_changed", { registrationOpen: body.registrationOpen });
   return json({ registrationOpen: body.registrationOpen });
 }
 
@@ -407,6 +437,7 @@ async function createInvite(env, user) {
     expirationTtl: INVITE_TTL_SECONDS + 60,
   });
 
+  logSecurityEvent("invite_created", { userId: user.id, expiresAt });
   return json({ token, expiresAt });
 }
 
@@ -540,29 +571,30 @@ async function hashAuthSecret(authSecret, salt) {
   return bytesToBase64(new Uint8Array(digest));
 }
 
-async function makeAuthVerifier(authSecret, salt) {
-  const material = await crypto.subtle.importKey("raw", authSecret, "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits(
-    {
-      name: "PBKDF2",
-      salt,
-      iterations: SERVER_AUTH_ITERATIONS,
-      hash: "SHA-256",
-    },
-    material,
-    256,
-  );
-
+async function makeAuthVerifier(env, authSecret, salt) {
   return {
-    version: 2,
-    name: "PBKDF2-SHA256",
-    iterations: SERVER_AUTH_ITERATIONS,
+    version: AUTH_VERIFIER_VERSION,
+    name: "HMAC-SHA256",
     salt: bytesToBase64(salt),
-    hash: bytesToBase64(new Uint8Array(bits)),
+    hash: await signAuthSecret(env, authSecret, salt),
   };
 }
 
-async function verifyAuthSecret(user, authSecret) {
+async function verifyAuthSecret(env, user, authSecret) {
+  if (user.auth?.version === 3 && user.auth.name === "HMAC-SHA256") {
+    if (!isBase64Field(user.auth.salt, 8, 128) || !isBase64Field(user.auth.hash, 32, 32)) {
+      return null;
+    }
+
+    try {
+      const salt = base64ToBytes(user.auth.salt);
+      const hash = await signAuthSecret(env, authSecret, salt);
+      return timingSafeEqual(hash, user.auth.hash) ? { upgradedUser: null } : null;
+    } catch {
+      return null;
+    }
+  }
+
   if (user.auth?.version === 2 && user.auth.name === "PBKDF2-SHA256") {
     if (
       !Number.isInteger(user.auth.iterations) ||
@@ -587,7 +619,14 @@ async function verifyAuthSecret(user, authSecret) {
         material,
         256,
       );
-      return timingSafeEqual(bytesToBase64(new Uint8Array(bits)), user.auth.hash) ? { upgradedUser: null } : null;
+      if (!timingSafeEqual(bytesToBase64(new Uint8Array(bits)), user.auth.hash)) return null;
+
+      const nextUser = {
+        ...user,
+        auth: await makeAuthVerifier(env, authSecret, crypto.getRandomValues(new Uint8Array(16))),
+        updatedAt: new Date().toISOString(),
+      };
+      return { upgradedUser: nextUser };
     } catch {
       return null;
     }
@@ -607,12 +646,31 @@ async function verifyAuthSecret(user, authSecret) {
 
   const nextUser = {
     ...user,
-    auth: await makeAuthVerifier(authSecret, crypto.getRandomValues(new Uint8Array(16))),
+    auth: await makeAuthVerifier(env, authSecret, crypto.getRandomValues(new Uint8Array(16))),
     updatedAt: new Date().toISOString(),
   };
   delete nextUser.authHash;
   delete nextUser.authSalt;
   return { upgradedUser: nextUser };
+}
+
+async function signAuthSecret(env, authSecret, salt) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(getAuthPepper(env)),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const payload = new Uint8Array(salt.length + authSecret.length);
+  payload.set(salt, 0);
+  payload.set(authSecret, salt.length);
+  const signature = await crypto.subtle.sign("HMAC", key, payload);
+  return bytesToBase64(new Uint8Array(signature));
+}
+
+function getAuthPepper(env) {
+  return env.AUTH_PEPPER || env.SESSION_SECRET;
 }
 
 function decodeAuthSecret(value) {
@@ -835,6 +893,27 @@ function base64UrlEncode(bytes) {
 function base64UrlToBytes(value) {
   const padded = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
   return base64ToBytes(padded);
+}
+
+function logApiError(request, url, error) {
+  console.error(
+    JSON.stringify({
+      event: "api_error",
+      method: request.method,
+      path: url.pathname,
+      message: error?.message || "Unknown error",
+    }),
+  );
+}
+
+function logSecurityEvent(event, fields = {}) {
+  console.log(
+    JSON.stringify({
+      event,
+      at: new Date().toISOString(),
+      ...fields,
+    }),
+  );
 }
 
 function json(data, status = 200, extraHeaders = {}) {

@@ -1,2 +1,3 @@
 SESSION_SECRET=replace-with-a-long-random-session-secret
+AUTH_PEPPER=replace-with-a-different-long-random-auth-pepper
 ADMIN_EMAIL=admin@example.com

@@ -401,6 +401,26 @@
       </button>
     </template>
 
+    <dialog id="appDialog" class="app-dialog" aria-labelledby="appDialogTitle" aria-describedby="appDialogMessage">
+      <form id="appDialogForm" novalidate>
+        <div class="dialog-head">
+          <span id="appDialogIcon" class="section-icon">
+            <svg class="icon"><use href="#icon-shield"></use></svg>
+          </span>
+          <div>
+            <h2 id="appDialogTitle">确认操作</h2>
+            <p id="appDialogMessage" class="muted"></p>
+          </div>
+        </div>
+        <div id="appDialogFields" class="dialog-fields"></div>
+        <p id="appDialogError" class="dialog-error" role="alert" aria-live="assertive"></p>
+        <div class="dialog-actions">
+          <button id="appDialogCancel" type="button">取消</button>
+          <button id="appDialogConfirm" type="submit" class="primary">确认</button>
+        </div>
+      </form>
+    </dialog>
+
     <script type="module" src="/app.js"></script>
   </body>
 </html>

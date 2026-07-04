@@ -83,6 +83,15 @@ const els = hasDocument
       lockButton: $("lockButton"),
       totpCode: $("totpCode"),
       totpTimerBar: $("totpTimerBar"),
+      appDialog: $("appDialog"),
+      appDialogForm: $("appDialogForm"),
+      appDialogIcon: $("appDialogIcon"),
+      appDialogTitle: $("appDialogTitle"),
+      appDialogMessage: $("appDialogMessage"),
+      appDialogFields: $("appDialogFields"),
+      appDialogError: $("appDialogError"),
+      appDialogCancel: $("appDialogCancel"),
+      appDialogConfirm: $("appDialogConfirm"),
     }
   : {};
 
@@ -305,7 +314,11 @@ async function loadBestEnvelope() {
   const localTime = envelopeTimestamp(localEnvelope);
   const remoteTime = envelopeTimestamp(remote.envelope, remote.updatedAt);
   if (localTime > remoteTime) {
-    const useLocal = confirm("本地加密副本比 Cloudflare 上的版本更新。使用本地版本并稍后同步？");
+    const useLocal = await confirmDialog("本地加密副本比 Cloudflare 上的版本更新。使用本地版本并稍后同步？", {
+      title: "使用本地版本",
+      confirmLabel: "使用本地",
+      cancelLabel: "使用远端",
+    });
     if (useLocal) {
       return { envelope: localEnvelope, remoteRevision: remote.revision, source: "local" };
     }
@@ -391,7 +404,15 @@ async function logoutVault() {
   clearTimeout(state.saveTimer);
   if (state.vault && state.key) {
     const saved = await saveVaultNow(false);
-    if (!saved && state.dirty && !confirm("保险箱尚未同步到 Cloudflare，仍要退出？本地加密副本会尽量保留。")) {
+    if (
+      !saved &&
+      state.dirty &&
+      !(await confirmDialog("保险箱尚未同步到 Cloudflare，仍要退出？本地加密副本会尽量保留。", {
+        title: "退出保险箱",
+        confirmLabel: "仍要退出",
+        danger: true,
+      }))
+    ) {
       return;
     }
   }
@@ -594,10 +615,18 @@ function createEntryRecord(name) {
   };
 }
 
-function deleteSelectedEntry() {
+async function deleteSelectedEntry() {
   const entry = getSelectedEntry();
   if (!entry) return;
-  if (!confirm(`删除“${entry.name || "未命名账号"}”？`)) return;
+  if (
+    !(await confirmDialog(`删除“${entry.name || "未命名账号"}”？`, {
+      title: "删除账号",
+      confirmLabel: "删除",
+      danger: true,
+    }))
+  ) {
+    return;
+  }
 
   state.vault.entries = state.vault.entries.filter((item) => item.id !== entry.id);
   selectEntry(state.vault.entries[0]?.id || null);
@@ -681,7 +710,7 @@ async function saveVaultNow(manual) {
   } catch (error) {
     state.dirty = true;
     els.saveStatus.textContent = error.message || "保存失败";
-    if (manual) alert(els.saveStatus.textContent);
+    if (manual) await alertDialog(els.saveStatus.textContent, { title: "保存失败" });
     return false;
   } finally {
     state.saving = false;
@@ -692,7 +721,16 @@ async function saveVaultNow(manual) {
 async function pullRemoteVault() {
   if (!state.user || !state.key) return;
   if (state.pulling) return;
-  if (state.dirty && !confirm("当前有未保存修改，继续拉取会覆盖本地内容。继续？")) return;
+  if (
+    state.dirty &&
+    !(await confirmDialog("当前有未保存修改，继续拉取会覆盖本地内容。继续？", {
+      title: "拉取远端密文",
+      confirmLabel: "继续拉取",
+      danger: true,
+    }))
+  ) {
+    return;
+  }
 
   try {
     state.pulling = true;
@@ -755,13 +793,25 @@ async function importVaultBackup() {
       throw new Error("备份文件不是有效的保险箱密文。");
     }
 
-    const password = prompt("输入当前主密码以解密备份。");
+    const password = await promptPasswordDialog("输入用于解密此备份的主密码。", {
+      title: "解密备份",
+      label: "主密码",
+      autocomplete: "current-password",
+    });
     if (!password) return;
 
     const salt = base64ToBytes(envelope.kdf.salt);
     const key = await deriveVaultKey(password, salt, envelope.kdf.iterations);
     const vault = normalizeVault(await decryptVault(envelope, key));
-    if (!confirm("导入会替换当前保险箱内容。继续？")) return;
+    if (
+      !(await confirmDialog("导入会替换当前保险箱内容。继续？", {
+        title: "导入备份",
+        confirmLabel: "继续导入",
+        danger: true,
+      }))
+    ) {
+      return;
+    }
 
     state.vault = vault;
     state.key = key;
@@ -779,36 +829,52 @@ async function importVaultBackup() {
 
 async function changeMasterPassword() {
   if (!state.user || !state.vault) return;
-
-  const currentPassword = prompt("输入当前主密码。");
-  if (!currentPassword) return;
-  const nextPassword = prompt("输入新的主密码，至少 10 个字符。");
-  if (!nextPassword) return;
-  if (nextPassword.length < 10) {
-    alert("新主密码至少需要 10 个字符。");
-    return;
-  }
-  const repeatedPassword = prompt("再次输入新的主密码。");
-  if (nextPassword !== repeatedPassword) {
-    alert("两次输入的新主密码不一致。");
+  if (state.saving || state.pulling) {
+    await alertDialog("当前有同步操作正在进行，请稍后再修改主密码。", { title: "暂时无法改密" });
     return;
   }
 
+  const passwords = await changePasswordDialog();
+  if (!passwords) return;
+
+  clearTimeout(state.saveTimer);
+  state.saveTimer = null;
+  state.saving = true;
+  updateBusyControls();
   try {
     els.saveStatus.textContent = "正在修改主密码…";
-    const authSecret = await makeAuthSecret(state.user.email, currentPassword);
-    const newAuthSecret = await makeAuthSecret(state.user.email, nextPassword);
-    await postJson("/api/auth/change-password", { authSecret, newAuthSecret });
+    const authSecret = await makeAuthSecret(state.user.email, passwords.currentPassword);
+    const newAuthSecret = await makeAuthSecret(state.user.email, passwords.nextPassword);
+    const nextSalt = crypto.getRandomValues(new Uint8Array(16));
+    const nextKey = await deriveVaultKey(passwords.nextPassword, nextSalt, KDF_ITERATIONS);
+    const nextVault = {
+      ...state.vault,
+      updatedAt: new Date().toISOString(),
+      entries: state.vault.entries.map((entry) => ({ ...entry })),
+    };
+    const envelope = await encryptVaultWith(nextVault, nextKey, nextSalt, KDF_ITERATIONS);
+    const changed = await postJson("/api/auth/change-password", {
+      authSecret,
+      newAuthSecret,
+      envelope,
+      baseRevision: state.remoteRevision,
+    });
 
-    const salt = crypto.getRandomValues(new Uint8Array(16));
-    state.key = await deriveVaultKey(nextPassword, salt, KDF_ITERATIONS);
-    state.salt = salt;
+    state.vault = nextVault;
+    state.key = nextKey;
+    state.salt = nextSalt;
     state.iterations = KDF_ITERATIONS;
-    state.dirty = true;
-    const saved = await saveVaultNow(true);
-    els.saveStatus.textContent = saved ? "主密码已修改并同步" : "主密码已修改，本地密文尚未同步";
+    state.remoteRevision = changed.revision;
+    envelope.remoteRevision = changed.revision;
+    envelope.updatedAt = changed.updatedAt || envelope.updatedAt;
+    writeLocalEnvelope(envelope);
+    state.dirty = false;
+    els.saveStatus.textContent = "主密码已修改并同步";
   } catch (error) {
     els.saveStatus.textContent = error.message || "主密码修改失败";
+  } finally {
+    state.saving = false;
+    updateBusyControls();
   }
 }
 
@@ -920,6 +986,188 @@ async function readJsonResponse(response) {
   }
 }
 
+function openDialog({
+  title,
+  message,
+  fields = [],
+  confirmLabel = "确认",
+  cancelLabel = "取消",
+  danger = false,
+  icon = "icon-shield",
+  validate = null,
+}) {
+  if (!hasDocument || !els.appDialog) return Promise.resolve(null);
+
+  return new Promise((resolve) => {
+    const controls = {};
+    let settled = false;
+
+    els.appDialog.dataset.danger = danger ? "true" : "false";
+    els.appDialogTitle.textContent = title || "确认操作";
+    els.appDialogMessage.textContent = message || "";
+    els.appDialogError.textContent = "";
+    els.appDialogFields.textContent = "";
+    els.appDialogConfirm.textContent = confirmLabel;
+    els.appDialogCancel.textContent = cancelLabel || "取消";
+    els.appDialogCancel.classList.toggle("hidden", !cancelLabel);
+    els.appDialogConfirm.classList.toggle("danger", danger);
+    setInlineIcon(els.appDialogIcon, danger ? "icon-trash" : icon);
+
+    for (const field of fields) {
+      const label = document.createElement("label");
+      const labelText = document.createElement("span");
+      const input = document.createElement("input");
+      const id = `dialog-${field.name}`;
+
+      labelText.className = "label-text";
+      labelText.textContent = field.label;
+      input.id = id;
+      input.name = field.name;
+      input.type = field.type || "text";
+      input.value = field.value || "";
+      input.autocomplete = field.autocomplete || "off";
+      input.spellcheck = false;
+      if (field.placeholder) input.placeholder = field.placeholder;
+      if (field.minLength) input.minLength = field.minLength;
+      if (field.required !== false) input.required = true;
+
+      label.setAttribute("for", id);
+      label.append(labelText, input);
+      els.appDialogFields.append(label);
+      controls[field.name] = input;
+    }
+
+    const cleanup = () => {
+      els.appDialogForm.removeEventListener("submit", handleSubmit);
+      els.appDialogCancel.removeEventListener("click", handleCancel);
+      els.appDialog.removeEventListener("cancel", handleCancelEvent);
+    };
+
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (els.appDialog.open) els.appDialog.close();
+      resolve(value);
+    };
+
+    const collectValues = () => {
+      const values = {};
+      for (const field of fields) {
+        values[field.name] = controls[field.name].value;
+      }
+      return values;
+    };
+
+    const focusFirstField = () => {
+      const firstField = fields[0] ? controls[fields[0].name] : null;
+      (firstField || els.appDialogConfirm).focus();
+    };
+
+    function handleCancel() {
+      finish(null);
+    }
+
+    function handleCancelEvent(event) {
+      event.preventDefault();
+      finish(null);
+    }
+
+    function handleSubmit(event) {
+      event.preventDefault();
+      const values = collectValues();
+      const validationMessage = validate ? validate(values) : "";
+      if (validationMessage) {
+        els.appDialogError.textContent = validationMessage;
+        focusFirstField();
+        return;
+      }
+      finish(fields.length ? values : true);
+    }
+
+    els.appDialogForm.addEventListener("submit", handleSubmit);
+    els.appDialogCancel.addEventListener("click", handleCancel);
+    els.appDialog.addEventListener("cancel", handleCancelEvent);
+    els.appDialog.showModal();
+    window.setTimeout(focusFirstField, 0);
+  });
+}
+
+function confirmDialog(message, options = {}) {
+  return openDialog({
+    title: options.title || "确认操作",
+    message,
+    confirmLabel: options.confirmLabel || "确认",
+    cancelLabel: options.cancelLabel || "取消",
+    danger: Boolean(options.danger),
+  }).then(Boolean);
+}
+
+async function alertDialog(message, options = {}) {
+  await openDialog({
+    title: options.title || "提示",
+    message,
+    confirmLabel: options.confirmLabel || "知道了",
+    cancelLabel: "",
+    icon: options.icon || "icon-shield",
+  });
+}
+
+async function promptPasswordDialog(message, options = {}) {
+  const values = await openDialog({
+    title: options.title || "输入主密码",
+    message,
+    fields: [
+      {
+        name: "password",
+        label: options.label || "主密码",
+        type: "password",
+        autocomplete: options.autocomplete || "current-password",
+        minLength: options.minLength || 1,
+      },
+    ],
+    confirmLabel: options.confirmLabel || "继续",
+    validate: (values) => (values.password ? "" : "请输入主密码。"),
+  });
+  return values?.password || "";
+}
+
+function changePasswordDialog() {
+  return openDialog({
+    title: "修改主密码",
+    message: "修改后会用新主密码重新加密整个保险箱。",
+    fields: [
+      {
+        name: "currentPassword",
+        label: "当前主密码",
+        type: "password",
+        autocomplete: "current-password",
+      },
+      {
+        name: "nextPassword",
+        label: "新主密码",
+        type: "password",
+        autocomplete: "new-password",
+        minLength: 10,
+      },
+      {
+        name: "repeatedPassword",
+        label: "再次输入新主密码",
+        type: "password",
+        autocomplete: "new-password",
+        minLength: 10,
+      },
+    ],
+    confirmLabel: "修改",
+    validate: (values) => {
+      if (!values.currentPassword) return "请输入当前主密码。";
+      if (!values.nextPassword || values.nextPassword.length < 10) return "新主密码至少需要 10 个字符。";
+      if (values.nextPassword !== values.repeatedPassword) return "两次输入的新主密码不一致。";
+      return "";
+    },
+  });
+}
+
 function readLocalEnvelope() {
   if (!state.user || state.cacheDisabled) return null;
   const raw = localStorage.getItem(getStorageKey(state.user.id));
@@ -974,6 +1222,10 @@ async function deriveVaultKey(password, salt, iterations) {
 }
 
 async function encryptVault(vault, key) {
+  return encryptVaultWith(vault, key, state.salt, state.iterations);
+}
+
+async function encryptVaultWith(vault, key, salt, iterations) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const encoded = encoder.encode(JSON.stringify(vault));
   const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoded);
@@ -982,8 +1234,8 @@ async function encryptVault(vault, key) {
     version: 1,
     kdf: {
       name: "PBKDF2-SHA256",
-      iterations: state.iterations,
-      salt: bytesToBase64(state.salt),
+      iterations,
+      salt: bytesToBase64(salt),
     },
     cipher: {
       name: "AES-GCM",
@@ -1234,6 +1486,7 @@ function updateBusyControls() {
   els.saveButton.disabled = state.saving || state.pulling;
   els.pullButton.disabled = state.saving || state.pulling;
   els.lockButton.disabled = state.saving;
+  els.changePasswordButton.disabled = state.saving || state.pulling;
 }
 
 function resetSecretVisibility() {

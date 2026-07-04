@@ -6,15 +6,15 @@
 
 ## 安全模型
 
-- 登录密码的原文不发送到 Worker。浏览器会先用 PBKDF2 派生登录用的 `authSecret`，Worker 再用 PBKDF2 保存 v2 登录 verifier。
-- 旧账号如果还使用早期 salted SHA-256 校验值，成功登录后会自动升级到 v2 verifier。
+- 登录密码的原文不发送到 Worker。浏览器会先用 PBKDF2 派生登录用的 `authSecret`，Worker 再用 `AUTH_PEPPER`/`SESSION_SECRET` 做 HMAC-SHA256 verifier。
+- 旧账号如果还使用早期 salted SHA-256 或 PBKDF2 v2 verifier，成功登录后会自动升级到当前 HMAC verifier。
 - 同一个登录密码也在浏览器内用于派生 AES-GCM 密钥，解密保险箱。
 - KV 里只有密文；没有主密码就无法解密。
 - Worker 保存用户记录、session 签名数据和保险箱密文。
 - 注册默认关闭。`ADMIN_EMAIL` 对应的主管理员账号可以注册并控制是否开放新用户注册。
 - 管理员可以生成一次性邀请链接，让注册关闭时的指定用户完成注册。
 - Worker 对注册、登录、保险箱读写和管理员设置做基础 KV 限流。
-- 保险箱保存带 revision 校验，能发现常见的多设备旧版本覆盖。
+- 保险箱保存和主密码修改都带 revision 校验，能发现常见的多设备旧版本覆盖。
 - 如果主密码丢失，保险箱无法恢复。
 - 同一个保险箱里同时保存密码和 2FA 会降低隔离性，建议另外离线保存 Google 恢复码。
 - 不建议把这个项目当作公开 SaaS 服务直接开放注册；公开分享会消耗你的 Cloudflare KV 配额。
@@ -33,7 +33,7 @@
    Copy-Item .dev.vars.example .dev.vars
    ```
 
-3. 把 `.dev.vars` 里的 `SESSION_SECRET` 换成一个长随机字符串，并把 `ADMIN_EMAIL` 改成主管理员邮箱。
+3. 把 `.dev.vars` 里的 `SESSION_SECRET` 和 `AUTH_PEPPER` 换成不同的长随机字符串，并把 `ADMIN_EMAIL` 改成主管理员邮箱。
 
 4. 打开 `http://localhost:8787`，先用 `ADMIN_EMAIL` 对应邮箱注册主管理员账号。
 
@@ -59,13 +59,19 @@
    wrangler secret put SESSION_SECRET
    ```
 
-5. 设置主管理员邮箱：
+5. 设置登录 verifier pepper：
+
+   ```powershell
+   wrangler secret put AUTH_PEPPER
+   ```
+
+6. 设置主管理员邮箱：
 
    ```powershell
    wrangler secret put ADMIN_EMAIL
    ```
 
-6. 部署：
+7. 部署：
 
    ```powershell
    npm run deploy
