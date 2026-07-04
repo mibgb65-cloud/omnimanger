@@ -4,6 +4,8 @@ const THEME_KEY = "account-secret-vault.theme";
 const AUTO_LOCK_KEY = "account-secret-vault.auto-lock-minutes";
 const CACHE_DISABLED_KEY = "account-secret-vault.cache-disabled";
 const PASSWORD_OPTIONS_KEY = "account-secret-vault.password-options";
+const IMPORT_MODE_KEY = "account-secret-vault.import-mode";
+const ENTRY_SORT_KEY = "account-secret-vault.entry-sort";
 const KDF_ITERATIONS = 310000;
 const AUTH_KDF_ITERATIONS = 120000;
 const CLIPBOARD_CLEAR_MS = 30_000;
@@ -40,6 +42,8 @@ const state = {
   settingsSection: "security",
   mobilePanel: "list",
   selectedTag: "",
+  importMode: "merge",
+  entrySort: "updated",
   online: true,
 };
 
@@ -76,6 +80,7 @@ const els = hasDocument
       sessionStatus: $("sessionStatus"),
       saveStatus: $("saveStatus"),
       searchInput: $("searchInput"),
+      entrySortSelect: $("entrySortSelect"),
       tagFilter: $("tagFilter"),
       addEntryButton: $("addEntryButton"),
       backToListButton: $("backToListButton"),
@@ -104,6 +109,7 @@ const els = hasDocument
       deleteEntryButton: $("deleteEntryButton"),
       importFileInput: $("importFileInput"),
       importButton: $("importButton"),
+      importModeSelect: $("importModeSelect"),
       exportButton: $("exportButton"),
       changePasswordButton: $("changePasswordButton"),
       logoutAllButton: $("logoutAllButton"),
@@ -142,6 +148,7 @@ function init() {
   initDecorativeIcons();
   initTheme();
   initSecurityPreferences();
+  initDataPreferences();
   initPasswordGeneratorOptions();
   initConnectivity();
   els.loginEmail.value = localStorage.getItem(LAST_EMAIL_KEY) || "";
@@ -171,6 +178,7 @@ function init() {
     renderEntries();
     setMobileVaultPanel("list");
   });
+  els.entrySortSelect.addEventListener("change", saveEntrySortPreference);
   els.tagFilter.addEventListener("click", handleTagFilterClick);
   els.addEntryButton.addEventListener("click", addEntry);
   els.emptyAddButton.addEventListener("click", addEntry);
@@ -187,6 +195,7 @@ function init() {
   els.deleteEntryButton.addEventListener("click", deleteSelectedEntry);
   els.importButton.addEventListener("click", () => els.importFileInput.click());
   els.importFileInput.addEventListener("change", importVaultBackup);
+  els.importModeSelect.addEventListener("change", saveImportModePreference);
   els.exportButton.addEventListener("click", exportVaultBackup);
   els.changePasswordButton.addEventListener("click", changeMasterPassword);
   els.logoutAllButton.addEventListener("click", logoutAllSessions);
@@ -268,6 +277,27 @@ function initSecurityPreferences() {
   state.cacheDisabled = localStorage.getItem(CACHE_DISABLED_KEY) === "true";
   els.localCacheToggle.checked = !state.cacheDisabled;
   updateSessionStatus();
+}
+
+function initDataPreferences() {
+  const savedImportMode = localStorage.getItem(IMPORT_MODE_KEY);
+  state.importMode = savedImportMode === "replace" ? "replace" : "merge";
+  els.importModeSelect.value = state.importMode;
+
+  const savedEntrySort = localStorage.getItem(ENTRY_SORT_KEY);
+  state.entrySort = ["updated", "risk", "name"].includes(savedEntrySort) ? savedEntrySort : "updated";
+  els.entrySortSelect.value = state.entrySort;
+}
+
+function saveImportModePreference() {
+  state.importMode = els.importModeSelect.value === "replace" ? "replace" : "merge";
+  localStorage.setItem(IMPORT_MODE_KEY, state.importMode);
+}
+
+function saveEntrySortPreference() {
+  state.entrySort = ["updated", "risk", "name"].includes(els.entrySortSelect.value) ? els.entrySortSelect.value : "updated";
+  localStorage.setItem(ENTRY_SORT_KEY, state.entrySort);
+  renderEntries();
 }
 
 function initPasswordGeneratorOptions() {
@@ -424,7 +454,7 @@ async function authenticate(mode) {
     setUnlockMessage("");
   } catch (error) {
     state.key = null;
-    setUnlockMessage(error.message || "无法登录。");
+    setUnlockMessage(formatAuthError(error));
   } finally {
     state.authenticating = false;
     setAuthButtonsDisabled(false);
@@ -878,7 +908,7 @@ function renderEntries() {
 function getFilteredEntries() {
   if (!state.vault) return [];
   const query = els.searchInput.value.trim().toLowerCase();
-  return state.vault.entries.filter((entry) => {
+  const entries = state.vault.entries.filter((entry) => {
     const tags = parseEntryTags(entry.tags);
     if (state.selectedTag && !tags.includes(state.selectedTag)) return false;
     const haystack = [entry.name, entry.login, entry.backupEmail, entry.backupPhone, entry.tags, entry.notes]
@@ -886,6 +916,37 @@ function getFilteredEntries() {
       .toLowerCase();
     return haystack.includes(query);
   });
+  return sortEntries(entries, state.entrySort, state.vault);
+}
+
+function sortEntries(entries, sortMode, vault) {
+  const sorted = [...entries];
+  if (sortMode === "risk") {
+    return sorted.sort((a, b) => {
+      const riskDiff = getEntryRiskScore(b, vault) - getEntryRiskScore(a, vault);
+      if (riskDiff) return riskDiff;
+      return compareUpdatedDesc(a, b);
+    });
+  }
+
+  if (sortMode === "name") {
+    return sorted.sort((a, b) => entryDisplayName(a).localeCompare(entryDisplayName(b)));
+  }
+
+  return sorted.sort(compareUpdatedDesc);
+}
+
+function compareUpdatedDesc(a, b) {
+  return dateValue(b.updatedAt || b.createdAt) - dateValue(a.updatedAt || a.createdAt);
+}
+
+function dateValue(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+}
+
+function entryDisplayName(entry) {
+  return String(entry.name || entry.login || "未命名账号").toLowerCase();
 }
 
 function renderTagFilters() {
@@ -1158,11 +1219,15 @@ function renderSecurityCheck() {
   }
 
   for (const check of checks) {
-    const item = document.createElement("div");
+    const item = document.createElement(check.entryIds?.length ? "button" : "div");
     const title = document.createElement("strong");
     const detail = document.createElement("span");
     item.className = "security-check-item";
     item.dataset.tone = check.tone;
+    if (check.entryIds?.length) {
+      item.type = "button";
+      item.addEventListener("click", () => focusSecurityEntry(check.entryIds[0]));
+    }
     title.textContent = check.title;
     detail.textContent = check.detail;
     item.append(title, detail);
@@ -1177,6 +1242,7 @@ function securityReportItems(report) {
       tone: "danger",
       title: `${report.emptyPasswords.length} 个账号缺少密码`,
       detail: entryNames(report.emptyPasswords),
+      entryIds: report.emptyPasswords.map((entry) => entry.id),
     });
   }
   if (report.weakPasswords.length) {
@@ -1184,6 +1250,7 @@ function securityReportItems(report) {
       tone: "warning",
       title: `${report.weakPasswords.length} 个账号使用弱密码`,
       detail: entryNames(report.weakPasswords),
+      entryIds: report.weakPasswords.map((entry) => entry.id),
     });
   }
   if (report.duplicatePasswordGroups.length) {
@@ -1191,6 +1258,7 @@ function securityReportItems(report) {
       tone: "danger",
       title: `${report.duplicatePasswordGroups.length} 组重复密码`,
       detail: report.duplicatePasswordGroups.map((group) => entryNames(group.entries)).join("；"),
+      entryIds: report.duplicatePasswordGroups.flatMap((group) => group.entries.map((entry) => entry.id)),
     });
   }
   if (report.missingTotp.length) {
@@ -1198,6 +1266,7 @@ function securityReportItems(report) {
       tone: "warning",
       title: `${report.missingTotp.length} 个账号缺少 2FA`,
       detail: entryNames(report.missingTotp),
+      entryIds: report.missingTotp.map((entry) => entry.id),
     });
   }
   if (report.missingRecovery.length) {
@@ -1205,9 +1274,23 @@ function securityReportItems(report) {
       tone: "warning",
       title: `${report.missingRecovery.length} 个账号缺少恢复码`,
       detail: entryNames(report.missingRecovery),
+      entryIds: report.missingRecovery.map((entry) => entry.id),
     });
   }
   return items;
+}
+
+function focusSecurityEntry(entryId) {
+  if (!entryId || !state.vault?.entries.some((entry) => entry.id === entryId)) return;
+  state.selectedTag = "";
+  els.searchInput.value = "";
+  navigateToAppPage("vault");
+  selectEntry(entryId, { openDetail: true });
+  window.setTimeout(() => {
+    const item = Array.from(els.entryList.querySelectorAll(".entry-item")).find((entryItem) => entryItem.dataset.id === entryId);
+    item?.scrollIntoView({ block: "nearest" });
+    item?.focus();
+  }, 0);
 }
 
 function entryNames(entries) {
@@ -1256,6 +1339,27 @@ function analyzeVaultSecurity(vault) {
     missingTotp,
     missingRecovery,
   };
+}
+
+function getEntryRiskScore(entry, vault) {
+  let score = 0;
+  const password = String(entry.password || "");
+  if (!password) {
+    score += 5;
+  } else {
+    if (scorePassword(password).level === "weak") score += 3;
+    if (hasDuplicatePassword(entry, vault)) score += 4;
+  }
+  if (!String(entry.totpSecret || "").trim()) score += 2;
+  if (!String(entry.recoveryCodes || "").trim()) score += 1;
+  return score;
+}
+
+function hasDuplicatePassword(entry, vault) {
+  const password = String(entry.password || "");
+  if (!password) return false;
+  const entries = Array.isArray(vault?.entries) ? vault.entries : [];
+  return entries.some((item) => item.id !== entry.id && item.password === password);
 }
 
 function togglePassword() {
@@ -1479,27 +1583,32 @@ async function importVaultBackup() {
     const key = await deriveVaultKey(password, salt, envelope.kdf.iterations);
     const vault = normalizeVault(await decryptVault(envelope, key));
     const diff = summarizeImportDiff(state.vault, vault);
+    const importMode = state.importMode === "replace" ? "replace" : "merge";
+    const importActionText =
+      importMode === "merge"
+        ? `将合并导入“${file.name}”：新增 ${diff.added} 个，重名覆盖 ${diff.matched} 个，保留当前 ${diff.removed} 个。继续？`
+        : `将整体替换为“${file.name}”：新增 ${diff.added} 个，重名覆盖 ${diff.matched} 个，当前将移除 ${diff.removed} 个。继续？`;
     if (
-      !(await confirmDialog(`将导入“${file.name}”：新增 ${diff.added} 个，重名覆盖 ${diff.matched} 个，当前将移除 ${diff.removed} 个。继续？`, {
+      !(await confirmDialog(importActionText, {
         title: "导入备份",
         confirmLabel: "继续导入",
-        danger: true,
+        danger: importMode === "replace",
       }))
     ) {
       return;
     }
 
-    state.vault = vault;
-    state.key = key;
-    state.salt = salt;
-    state.iterations = envelope.kdf.iterations;
-    state.remoteRevision = envelope.remoteRevision || state.remoteRevision;
+    if (importMode === "merge") {
+      state.vault = mergeImportedVault(state.vault, vault);
+    } else {
+      state.vault = vault;
+    }
     state.dirty = true;
     renderEntries();
     selectEntry(state.vault.entries[0]?.id || null, { openDetail: false });
     setMobileVaultPanel("list");
     await saveVaultNow(true);
-    showToast("备份已导入", { message: `${diff.incomingTotal} 个账号`, tone: "success" });
+    showToast("备份已导入", { message: importMode === "merge" ? "已合并到当前保险箱" : `${diff.incomingTotal} 个账号`, tone: "success" });
   } catch (error) {
     showToast("导入失败", { message: error.message || "无法读取备份文件。", tone: "danger" });
   }
@@ -1537,6 +1646,19 @@ function summarizeImportDiff(currentVault, incomingVault) {
     matched,
     removed,
   };
+}
+
+function mergeImportedVault(currentVault, incomingVault) {
+  const current = normalizeVault(currentVault);
+  const incoming = normalizeVault(incomingVault);
+  const incomingKeys = new Set(incoming.entries.map(importEntryKey));
+  const keptCurrentEntries = current.entries.filter((entry) => !incomingKeys.has(importEntryKey(entry)));
+  return normalizeVault({
+    version: 1,
+    createdAt: current.createdAt || incoming.createdAt,
+    updatedAt: new Date().toISOString(),
+    entries: [...incoming.entries, ...keptCurrentEntries],
+  });
 }
 
 function importEntryKey(entry) {
@@ -1637,8 +1759,27 @@ async function postJson(url, body) {
     body: JSON.stringify(body),
   });
   const data = await readJsonResponse(response);
-  if (!response.ok) throw new Error(data.error || "请求失败。");
+  if (!response.ok) {
+    const error = new Error(data.error || "请求失败。");
+    error.status = response.status;
+    error.data = data;
+    throw error;
+  }
   return data;
+}
+
+function formatAuthError(error) {
+  const retryAfter = Number(error?.data?.retryAfter || 0);
+  if (error?.status === 429 && retryAfter > 0) {
+    return `尝试次数过多，请等待 ${formatDuration(retryAfter)} 后再试。`;
+  }
+  return error?.message || "无法登录。";
+}
+
+function formatDuration(seconds) {
+  if (seconds < 60) return `${seconds} 秒`;
+  const minutes = Math.ceil(seconds / 60);
+  return `${minutes} 分钟`;
 }
 
 async function loadAdminSettings() {
@@ -2489,9 +2630,11 @@ export {
   bytesToBase64,
   generatePassword,
   generateTotp,
+  getEntryRiskScore,
   getVaultTags,
   isVaultEnvelope,
   makeAuthSecret,
+  mergeImportedVault,
   normalizeEmail,
   normalizePasswordLength,
   normalizePasswordOptions,

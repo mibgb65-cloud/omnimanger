@@ -390,6 +390,51 @@ test("change password rejects stale revisions without changing login secret", as
   assert.equal(newLogin.status, 401);
 });
 
+test("login failures trigger cooldown and successful login clears failures", async () => {
+  const env = makeEnv();
+  const password = "correct horse battery";
+  await register(env, "admin@example.com", password);
+  const correctAuthSecret = await makeAuthSecret("admin@example.com", password);
+  const wrongAuthSecret = await makeAuthSecret("admin@example.com", "wrong horse battery");
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const failed = await worker.fetch(
+      jsonRequest("/api/auth/login", { email: "admin@example.com", authSecret: wrongAuthSecret }),
+      env,
+    );
+    assert.equal(failed.status, 401);
+  }
+
+  const cleared = await worker.fetch(
+    jsonRequest("/api/auth/login", { email: "admin@example.com", authSecret: correctAuthSecret }),
+    env,
+  );
+  assert.equal(cleared.status, 200);
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const failed = await worker.fetch(
+      jsonRequest("/api/auth/login", { email: "admin@example.com", authSecret: wrongAuthSecret }),
+      env,
+    );
+    assert.equal(failed.status, 401);
+  }
+
+  const locked = await worker.fetch(
+    jsonRequest("/api/auth/login", { email: "admin@example.com", authSecret: wrongAuthSecret }),
+    env,
+  );
+  assert.equal(locked.status, 429);
+  assert.equal(locked.headers.get("Retry-After"), "30");
+  const data = await locked.json();
+  assert.equal(data.retryAfter, 30);
+
+  const stillLocked = await worker.fetch(
+    jsonRequest("/api/auth/login", { email: "admin@example.com", authSecret: correctAuthSecret }),
+    env,
+  );
+  assert.equal(stillLocked.status, 429);
+});
+
 test("legacy v2 auth verifier upgrades after successful login", async () => {
   const env = makeEnv();
   await seedV2User(env, "admin@example.com", "correct horse battery");

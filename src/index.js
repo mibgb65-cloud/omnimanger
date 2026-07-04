@@ -9,6 +9,9 @@ const AUTH_VERIFIER_VERSION = 3;
 const MIN_VAULT_KDF_ITERATIONS = 100000;
 const MAX_VAULT_KDF_ITERATIONS = 2000000;
 const INVITE_TTL_SECONDS = 7 * 24 * 60 * 60;
+const LOGIN_COOLDOWN_THRESHOLD = 3;
+const LOGIN_COOLDOWN_STEPS_SECONDS = [30, 120, 600, 1800];
+const LOGIN_FAILURE_TTL_SECONDS = 24 * 60 * 60;
 const RATE_LIMITS = {
   registerIp: { limit: 5, windowSeconds: 60 * 60 },
   registerEmail: { limit: 3, windowSeconds: 60 * 60 },
@@ -314,20 +317,28 @@ async function loginUser(request, env, url) {
   );
   if (emailLimited) return emailLimited;
 
+  const cooldown = await getLoginCooldown(env, email);
+  if (cooldown) return loginCooldownResponse(cooldown.retryAfter);
+
   const user = await getUserByEmail(env, email);
   if (!user) {
+    const failure = await recordLoginFailure(env, email);
     logSecurityEvent("login_failed", { reason: "unknown_user" });
     await recordAuditEvent(env, "login_failed", { reason: "unknown_user" });
+    if (failure.retryAfter) return loginCooldownResponse(failure.retryAfter);
     return json({ error: "Email or password is invalid." }, 401);
   }
 
   const verified = await verifyAuthSecret(env, user, authSecret);
   if (!verified) {
+    const failure = await recordLoginFailure(env, email);
     logSecurityEvent("login_failed", { reason: "bad_secret", userId: user.id });
     await recordAuditEvent(env, "login_failed", { reason: "bad_secret", userId: user.id });
+    if (failure.retryAfter) return loginCooldownResponse(failure.retryAfter);
     return json({ error: "Email or password is invalid." }, 401);
   }
 
+  await clearLoginFailures(env, email);
   if (verified.upgradedUser) {
     await env.VAULT.put(userKey(verified.upgradedUser.id), JSON.stringify(verified.upgradedUser));
   }
@@ -1012,6 +1023,70 @@ async function enforceRateLimit(env, scope, identifier, limit, windowSeconds) {
     expirationTtl: windowSeconds + 60,
   });
   return null;
+}
+
+async function getLoginCooldown(env, email) {
+  const record = await readLoginFailureRecord(env, email);
+  const lockedUntil = Date.parse(record.lockedUntil || "");
+  if (!Number.isFinite(lockedUntil) || lockedUntil <= Date.now()) return null;
+  return {
+    retryAfter: Math.max(1, Math.ceil((lockedUntil - Date.now()) / 1000)),
+  };
+}
+
+async function recordLoginFailure(env, email) {
+  const record = await readLoginFailureRecord(env, email);
+  const failures = Number(record.failures || 0) + 1;
+  const cooldownSeconds = loginCooldownSeconds(failures);
+  const lockedUntil = cooldownSeconds ? new Date(Date.now() + cooldownSeconds * 1000).toISOString() : null;
+  await env.VAULT.put(
+    await loginFailureKey(email),
+    JSON.stringify({
+      failures,
+      lockedUntil,
+      updatedAt: new Date().toISOString(),
+    }),
+    { expirationTtl: LOGIN_FAILURE_TTL_SECONDS },
+  );
+  return { failures, retryAfter: cooldownSeconds };
+}
+
+async function clearLoginFailures(env, email) {
+  await env.VAULT.delete(await loginFailureKey(email));
+}
+
+async function readLoginFailureRecord(env, email) {
+  const raw = await env.VAULT.get(await loginFailureKey(email), "text");
+  if (!raw) return {};
+  try {
+    const record = JSON.parse(raw);
+    return record && typeof record === "object" ? record : {};
+  } catch {
+    return {};
+  }
+}
+
+async function loginFailureKey(email) {
+  return `login-failure:${await hashIdentifier(email)}`;
+}
+
+function loginCooldownSeconds(failures) {
+  if (failures < LOGIN_COOLDOWN_THRESHOLD) return 0;
+  const index = Math.min(failures - LOGIN_COOLDOWN_THRESHOLD, LOGIN_COOLDOWN_STEPS_SECONDS.length - 1);
+  return LOGIN_COOLDOWN_STEPS_SECONDS[index];
+}
+
+function loginCooldownResponse(retryAfter) {
+  return json(
+    {
+      error: `Too many failed login attempts. Try again in ${retryAfter} seconds.`,
+      retryAfter,
+    },
+    429,
+    {
+      "Retry-After": String(retryAfter),
+    },
+  );
 }
 
 async function hashIdentifier(value) {

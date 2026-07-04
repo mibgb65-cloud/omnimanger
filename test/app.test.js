@@ -11,8 +11,10 @@ const {
   base32ToBytes,
   generatePassword,
   generateTotp,
+  getEntryRiskScore,
   getVaultTags,
   isVaultEnvelope,
+  mergeImportedVault,
   normalizeEmail,
   normalizePasswordLength,
   normalizePasswordOptions,
@@ -127,4 +129,47 @@ test("import diff summarizes added matched and removed accounts", () => {
     matched: 1,
     removed: 1,
   });
+});
+
+test("merge import keeps current unmatched accounts", () => {
+  const current = {
+    createdAt: "2026-01-01T00:00:00.000Z",
+    entries: [
+      { id: "1", name: "Main local", login: "main@example.com", password: "old password" },
+      { id: "2", name: "Local only", login: "local@example.com", password: "local password" },
+    ],
+  };
+  const incoming = {
+    entries: [
+      { id: "3", name: "Main backup", login: "main@example.com", password: "backup password" },
+      { id: "4", name: "Backup only", login: "backup@example.com", password: "backup only password" },
+    ],
+  };
+
+  const merged = mergeImportedVault(current, incoming);
+  assert.deepEqual(
+    merged.entries.map((entry) => entry.name),
+    ["Main backup", "Backup only", "Local only"],
+  );
+  assert.equal(merged.entries.find((entry) => entry.login === "main@example.com").password, "backup password");
+});
+
+test("entry risk score prioritizes missing and duplicated secrets", () => {
+  const vault = {
+    entries: [
+      {
+        id: "safe",
+        name: "Safe",
+        password: "Stronger-Password-2026!",
+        totpSecret: "JBSWY3DPEHPK3PXP",
+        recoveryCodes: "123456",
+      },
+      { id: "risky", name: "Risky", password: "", totpSecret: "", recoveryCodes: "" },
+      { id: "duplicate", name: "Duplicate", password: "abc", totpSecret: "", recoveryCodes: "" },
+      { id: "duplicate-2", name: "Duplicate 2", password: "abc", totpSecret: "JBSWY3DPEHPK3PXP", recoveryCodes: "" },
+    ],
+  };
+
+  assert.ok(getEntryRiskScore(vault.entries[1], vault) > getEntryRiskScore(vault.entries[0], vault));
+  assert.ok(getEntryRiskScore(vault.entries[2], vault) > getEntryRiskScore(vault.entries[0], vault));
 });

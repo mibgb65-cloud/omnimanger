@@ -640,7 +640,7 @@ html[data-theme="dark"] .auth-mode button[data-active="true"] {
 
 .list-panel {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   overflow: hidden;
 }
 
@@ -650,6 +650,23 @@ html[data-theme="dark"] .auth-mode button[data-active="true"] {
   gap: 12px;
   padding: 14px;
   border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.list-options {
+  border-bottom: 1px solid var(--color-border-subtle);
+  padding: 10px 14px;
+}
+
+.list-options label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.list-options select {
+  height: 36px;
+  font-size: 13px;
 }
 
 .tag-filter {
@@ -1101,6 +1118,18 @@ html[data-theme="dark"] .auth-mode button[data-active="true"] {
   border-radius: var(--radius-md);
   background: var(--color-surface-soft);
   padding: 10px 11px;
+}
+
+button.security-check-item {
+  width: 100%;
+  min-height: 0;
+  justify-content: stretch;
+  text-align: left;
+}
+
+button.security-check-item:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-hover);
 }
 
 .security-check-item[data-tone="danger"] {

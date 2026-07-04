@@ -284,6 +284,16 @@
               <span class="sr-only">新增账号</span>
             </button>
           </div>
+          <div class="list-options">
+            <label>
+              <span class="label-text"><svg class="icon"><use href="#icon-list"></use></svg>排序</span>
+              <select id="entrySortSelect">
+                <option value="updated">最近更新</option>
+                <option value="risk">风险优先</option>
+                <option value="name">名称</option>
+              </select>
+            </label>
+          </div>
           <div id="tagFilter" class="tag-filter" aria-label="标签筛选"></div>
           <div id="entryList" class="entry-list" role="listbox" aria-label="账号列表"></div>
         </aside>
@@ -519,6 +529,18 @@
                 <h3>同步和备份</h3>
                 <p class="muted">导入、导出或从 Cloudflare 拉取密文。</p>
               </div>
+            </div>
+            <div class="settings-list">
+              <label class="setting-row">
+                <span>
+                  <strong>导入模式</strong>
+                  <small>导入后仍使用当前主密码重新加密；合并会保留当前账号。</small>
+                </span>
+                <select id="importModeSelect">
+                  <option value="merge">合并导入</option>
+                  <option value="replace">整体替换</option>
+                </select>
+              </label>
             </div>
             <div class="settings-actions">
               <input id="importFileInput" class="sr-only" type="file" accept="application/json">
