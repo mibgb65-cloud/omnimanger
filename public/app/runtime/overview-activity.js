@@ -176,6 +176,7 @@ function activityTitle(type) {
       verify_backup: "验证备份",
       import_backup: "导入备份",
       pull_remote: "拉取远端",
+      restore_password: "恢复旧密码",
       change_password: "修改主密码",
       logout_all: "退出所有设备",
     }[type] || "保险箱操作"

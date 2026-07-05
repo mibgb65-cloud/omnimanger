@@ -65,6 +65,7 @@ const els = hasDocument
       passwordLengthInput: $("passwordLengthInput"),
       passwordSymbolsToggle: $("passwordSymbolsToggle"),
       passwordReadableToggle: $("passwordReadableToggle"),
+      passwordHistoryList: $("passwordHistoryList"),
       entryTotpSecret: $("entryTotpSecret"),
       entryRecoveryCodes: $("entryRecoveryCodes"),
       entryNotes: $("entryNotes"),

@@ -259,6 +259,16 @@ html[data-theme="dark"] .app-dialog[data-danger="true"] button.primary {
     display: grid;
   }
 
+  .password-history-head,
+  .password-history-item {
+    align-items: stretch;
+    display: grid;
+  }
+
+  .password-history-actions {
+    justify-content: stretch;
+  }
+
   .secret-control {
     grid-template-columns: 1fr;
   }

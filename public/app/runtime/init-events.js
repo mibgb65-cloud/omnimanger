@@ -60,6 +60,7 @@ function init() {
   els.passwordLengthInput.addEventListener("change", savePasswordGeneratorOptions);
   els.passwordSymbolsToggle.addEventListener("change", savePasswordGeneratorOptions);
   els.passwordReadableToggle.addEventListener("change", savePasswordGeneratorOptions);
+  els.passwordHistoryList.addEventListener("click", handlePasswordHistoryAction);
   els.togglePasswordButton.addEventListener("click", togglePassword);
   els.toggleTotpButton.addEventListener("click", toggleTotp);
   els.deleteEntryButton.addEventListener("click", deleteSelectedEntry);

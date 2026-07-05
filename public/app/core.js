@@ -3,6 +3,7 @@ const BACKUP_REMINDER_MS = BACKUP_REMINDER_DAYS * 24 * 60 * 60 * 1000;
 const KDF_ITERATIONS = 310000;
 const AUTH_KDF_ITERATIONS = 120000;
 const GENERATED_PASSWORD_LENGTH = 20;
+const PASSWORD_HISTORY_LIMIT = 5;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
@@ -34,6 +35,7 @@ function normalizeEntry(entry) {
     tags: entry.tags || "",
     notes: entry.notes || "",
     customFields: normalizeCustomFields(entry.customFields),
+    passwordHistory: normalizePasswordHistory(entry.passwordHistory),
     createdAt: entry.createdAt || new Date().toISOString(),
     updatedAt: entry.updatedAt || new Date().toISOString(),
   };
@@ -48,6 +50,25 @@ function normalizeCustomFields(fields) {
       value: String(field?.value ?? "").trim(),
     }))
     .filter((field) => field.label || field.value);
+}
+
+function normalizePasswordHistory(history) {
+  if (!Array.isArray(history)) return [];
+  return history
+    .map((item) => ({
+      id: item?.id || crypto.randomUUID(),
+      password: String(item?.password ?? ""),
+      changedAt: item?.changedAt || new Date().toISOString(),
+    }))
+    .filter((item) => item.password)
+    .slice(0, PASSWORD_HISTORY_LIMIT);
+}
+
+function addPasswordHistoryEntry(history, password, changedAt = new Date().toISOString()) {
+  const value = String(password ?? "");
+  if (!value) return normalizePasswordHistory(history);
+  const existing = normalizePasswordHistory(history).filter((item) => item.password !== value);
+  return [{ id: crypto.randomUUID(), password: value, changedAt }, ...existing].slice(0, PASSWORD_HISTORY_LIMIT);
 }
 
 function parseSearchQuery(value) {
@@ -433,6 +454,7 @@ function base64ToBytes(base64) {
 
 export {
   analyzeVaultSecurity,
+  addPasswordHistoryEntry,
   base32ToBytes,
   base64ToBytes,
   bytesToBase64,
@@ -455,6 +477,7 @@ export {
   normalizeCustomFields,
   normalizeEntry,
   normalizeEmail,
+  normalizePasswordHistory,
   normalizePasswordLength,
   normalizePasswordOptions,
   normalizeVault,

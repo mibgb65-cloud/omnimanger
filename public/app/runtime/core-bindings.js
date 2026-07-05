@@ -1,4 +1,5 @@
 Object.assign(window, {
+  addPasswordHistoryEntry: AppCore.addPasswordHistoryEntry,
   analyzeVaultSecurity: AppCore.analyzeVaultSecurity,
   base32ToBytes: AppCore.base32ToBytes,
   base64ToBytes: AppCore.base64ToBytes,
@@ -23,6 +24,7 @@ Object.assign(window, {
   normalizeEmail: AppCore.normalizeEmail,
   normalizeEntry: AppCore.normalizeEntry,
   normalizePasswordLength: AppCore.normalizePasswordLength,
+  normalizePasswordHistory: AppCore.normalizePasswordHistory,
   normalizePasswordOptions: AppCore.normalizePasswordOptions,
   normalizeVault: AppCore.normalizeVault,
   parseEntryTags: AppCore.parseEntryTags,

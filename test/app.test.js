@@ -7,6 +7,7 @@ if (!globalThis.crypto) {
 }
 
 const {
+  addPasswordHistoryEntry,
   analyzeVaultSecurity,
   base32ToBytes,
   entryHasRisk,
@@ -28,6 +29,7 @@ const {
   normalizeEmail,
   normalizeVault,
   normalizePasswordLength,
+  normalizePasswordHistory,
   normalizePasswordOptions,
   parseSearchQuery,
   parseEntryTags,
@@ -165,6 +167,27 @@ test("custom fields normalize and participate in search", () => {
   assert.equal(entryMatchesSearch(vault.entries[0], "has:custom", vault), true);
   assert.equal(entryMatchesSearch(vault.entries[0], "missing:custom", vault), false);
   assert.equal(normalizeVault(vault).entries[0].customFields.length, 2);
+});
+
+test("password history keeps recent unique old passwords", () => {
+  let history = [];
+  for (let index = 1; index <= 6; index += 1) {
+    history = addPasswordHistoryEntry(history, `old-pass-${index}`, `2026-07-0${index}T00:00:00.000Z`);
+  }
+
+  assert.equal(history.length, 5);
+  assert.deepEqual(
+    history.map((item) => item.password),
+    ["old-pass-6", "old-pass-5", "old-pass-4", "old-pass-3", "old-pass-2"],
+  );
+
+  history = addPasswordHistoryEntry(history, "old-pass-4", "2026-07-07T00:00:00.000Z");
+  assert.deepEqual(
+    history.map((item) => item.password),
+    ["old-pass-4", "old-pass-6", "old-pass-5", "old-pass-3", "old-pass-2"],
+  );
+  assert.equal(normalizePasswordHistory([{ password: "" }, { password: "  kept  " }]).length, 1);
+  assert.equal(normalizeVault({ entries: [{ name: "A", passwordHistory: history }] }).entries[0].passwordHistory.length, 5);
 });
 
 test("advanced search filters by tags fields risk and missing secrets", () => {

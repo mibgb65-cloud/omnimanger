@@ -3,6 +3,10 @@
   return Number.isNaN(date.getTime()) ? 0 : date.getTime();
 }
 
+let passwordHistoryEntryId = "";
+let passwordHistoryOriginal = "";
+let passwordHistoryCaptured = false;
+
 function entryDisplayName(entry) {
   return String(entry.name || entry.login || "未命名账号").toLowerCase();
 }
@@ -92,6 +96,8 @@ function selectEntry(id, options = {}) {
     els.entryRecoveryCodes.value = entry.recoveryCodes;
     els.entryNotes.value = entry.notes;
   }
+  setPasswordHistorySnapshot(entry);
+  renderPasswordHistory(entry);
   renderCustomFields(entry);
 
   showDetailSection(state.detailSection);
@@ -127,7 +133,9 @@ function handleEntryInput() {
   entry.backupEmail = els.entryBackupEmail.value;
   entry.backupPhone = els.entryBackupPhone.value;
   entry.tags = els.entryTags.value;
-  entry.password = els.entryPassword.value;
+  const nextPassword = els.entryPassword.value;
+  maybeCaptureManualPasswordHistory(entry, nextPassword);
+  entry.password = nextPassword;
   const totp = parseTotpInput(els.entryTotpSecret.value);
   if (totp.secret !== els.entryTotpSecret.value) {
     els.entryTotpSecret.value = totp.secret;
@@ -177,9 +185,114 @@ function createEntryRecord(name) {
     tags: "",
     notes: "",
     customFields: [],
+    passwordHistory: [],
     createdAt: now,
     updatedAt: now,
   };
+}
+
+function setPasswordHistorySnapshot(entry) {
+  passwordHistoryEntryId = entry?.id || "";
+  passwordHistoryOriginal = entry?.password || "";
+  passwordHistoryCaptured = false;
+}
+
+function maybeCaptureManualPasswordHistory(entry, nextPassword) {
+  if (entry.id !== passwordHistoryEntryId) setPasswordHistorySnapshot(entry);
+  if (passwordHistoryCaptured || !passwordHistoryOriginal || nextPassword === passwordHistoryOriginal) return;
+  entry.passwordHistory = addPasswordHistoryEntry(entry.passwordHistory, passwordHistoryOriginal);
+  passwordHistoryCaptured = true;
+  renderPasswordHistory(entry);
+}
+
+function replaceEntryPassword(entry, nextPassword) {
+  if (entry.password && entry.password !== nextPassword) {
+    entry.passwordHistory = addPasswordHistoryEntry(entry.passwordHistory, entry.password);
+  }
+  entry.password = nextPassword;
+  els.entryPassword.value = nextPassword;
+  setPasswordHistorySnapshot(entry);
+  renderPasswordHistory(entry);
+}
+
+function renderPasswordHistory(entry) {
+  if (!els.passwordHistoryList) return;
+  els.passwordHistoryList.textContent = "";
+  if (!entry) return;
+
+  entry.passwordHistory = normalizePasswordHistory(entry.passwordHistory);
+  const history = entry.passwordHistory.filter((item) => item.password !== entry.password);
+  if (!history.length) {
+    const empty = document.createElement("span");
+    empty.className = "password-history-empty";
+    empty.textContent = "还没有旧密码。";
+    els.passwordHistoryList.append(empty);
+    return;
+  }
+
+  for (const item of history) {
+    els.passwordHistoryList.append(createPasswordHistoryItem(item));
+  }
+}
+
+function createPasswordHistoryItem(item) {
+  const row = document.createElement("div");
+  const meta = document.createElement("span");
+  const title = document.createElement("strong");
+  const detail = document.createElement("small");
+  const actions = document.createElement("div");
+  row.className = "password-history-item";
+  title.textContent = "旧密码";
+  detail.textContent = [formatDateTime(item.changedAt) || "未知时间", `${item.password.length} 位`].join(" / ");
+  meta.append(title, detail);
+  actions.className = "password-history-actions";
+  actions.append(
+    passwordHistoryButton(item.id, "copy", "复制"),
+    passwordHistoryButton(item.id, "restore", "恢复"),
+    passwordHistoryButton(item.id, "delete", "删除"),
+  );
+  row.append(meta, actions);
+  return row;
+}
+
+function passwordHistoryButton(id, action, label) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.dataset.passwordHistoryId = id;
+  button.dataset.passwordHistoryAction = action;
+  button.textContent = label;
+  return button;
+}
+
+async function handlePasswordHistoryAction(event) {
+  const button = event.target.closest("button[data-password-history-action]");
+  if (!button) return;
+  const entry = getSelectedEntry();
+  const item = normalizePasswordHistory(entry?.passwordHistory).find((history) => history.id === button.dataset.passwordHistoryId);
+  if (!entry || !item) return;
+
+  if (button.dataset.passwordHistoryAction === "copy") {
+    await copyText(item.password);
+    showToast("旧密码已复制", { message: "剪贴板会在短时间后尝试清空。", tone: "success" });
+    return;
+  }
+
+  if (button.dataset.passwordHistoryAction === "restore") {
+    entry.passwordHistory = normalizePasswordHistory(entry.passwordHistory).filter((history) => history.id !== item.id);
+    replaceEntryPassword(entry, item.password);
+    entry.updatedAt = new Date().toISOString();
+    renderEntries();
+    updatePasswordStatus();
+    markDirty();
+    recordActivity("restore_password", entry.name || entry.login || "未命名账号");
+    showToast("已恢复旧密码", { tone: "success" });
+    return;
+  }
+
+  entry.passwordHistory = normalizePasswordHistory(entry.passwordHistory).filter((history) => history.id !== item.id);
+  entry.updatedAt = new Date().toISOString();
+  renderPasswordHistory(entry);
+  markDirty();
 }
 
 function renderCustomFields(entry) {
@@ -286,8 +399,7 @@ function fillGeneratedPassword() {
 
   savePasswordGeneratorOptions();
   const password = generatePassword(getPasswordGeneratorOptions());
-  els.entryPassword.value = password;
-  entry.password = password;
+  replaceEntryPassword(entry, password);
   entry.updatedAt = new Date().toISOString();
   updatePasswordStatus();
   markDirty();
