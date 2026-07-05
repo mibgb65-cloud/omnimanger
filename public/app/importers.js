@@ -118,7 +118,8 @@ function bitwardenItemToEntry(item) {
     login: login.username,
     password: login.password,
     totpSecret: login.totp,
-    notes: joinNotes([item?.notes, url ? `URL: ${url}` : "", formatCustomFields(item?.fields)]),
+    customFields: mapNamedFields(item?.fields),
+    notes: joinNotes([item?.notes, url ? `URL: ${url}` : ""]),
     tags: SOURCE_TAGS.bitwarden,
   };
 }
@@ -131,6 +132,7 @@ function onePasswordItemToEntry(item) {
     login: fieldByName(fields, ["username", "email", "user name"]),
     password: fieldByName(fields, ["password"]),
     totpSecret: fieldByName(fields, ["one-time password", "otp", "totp", "2fa"]),
+    customFields: mapOnePasswordCustomFields(fields),
     notes: joinNotes([item?.details?.notesPlain || item?.notesPlain || item?.notes, url ? `URL: ${url}` : ""]),
     tags: SOURCE_TAGS.onePassword,
   };
@@ -145,6 +147,7 @@ function genericRecordToEntry(record) {
     password: login.password || pick(record, ["password"]),
     totpSecret: login.totp || pick(record, ["totpSecret", "totp", "otp", "otpauth"]),
     recoveryCodes: pick(record, ["recoveryCodes", "recovery", "backupCodes"]),
+    customFields: Array.isArray(record?.customFields) ? record.customFields : [],
     tags: pick(record, ["tags", "folder", "category"]),
     notes: joinNotes([pick(record, ["notes", "note"]), url ? `URL: ${url}` : ""]),
   };
@@ -163,6 +166,7 @@ function normalizeImportedEntry(entry, source, now) {
     backupPhone: "",
     tags: joinTags(["imported", source, entry.tags]),
     notes: cleanText(entry.notes),
+    customFields: normalizeImportedCustomFields(entry.customFields),
     createdAt: now,
     updatedAt: now,
   };
@@ -196,12 +200,32 @@ function firstValue(items, key) {
   return Array.isArray(items) ? cleanText(items.find((item) => item?.[key])?.[key]) : "";
 }
 
-function formatCustomFields(fields) {
-  if (!Array.isArray(fields)) return "";
+function mapNamedFields(fields) {
+  if (!Array.isArray(fields)) return [];
   return fields
-    .map((field) => [cleanText(field?.name), cleanText(field?.value)].filter(Boolean).join(": "))
-    .filter(Boolean)
-    .join("\n");
+    .map((field) => ({ label: cleanText(field?.name), value: cleanText(field?.value) }))
+    .filter((field) => field.label || field.value);
+}
+
+function mapOnePasswordCustomFields(fields) {
+  const reserved = new Set(["username", "email", "user name", "password", "one-time password", "otp", "totp", "2fa"]);
+  return fields
+    .map((field) => {
+      const label = cleanText(field?.label || field?.name || field?.title || field?.designation);
+      return { label, value: fieldValue(field) };
+    })
+    .filter((field) => (field.label || field.value) && !reserved.has(normalizeHeader(field.label)));
+}
+
+function normalizeImportedCustomFields(fields) {
+  if (!Array.isArray(fields)) return [];
+  return fields
+    .map((field) => ({
+      id: crypto.randomUUID(),
+      label: cleanText(field?.label || field?.name),
+      value: cleanText(field?.value),
+    }))
+    .filter((field) => field.label || field.value);
 }
 
 function pick(record, keys) {
@@ -240,7 +264,7 @@ function joinTags(parts) {
 }
 
 function hasImportValue(entry) {
-  return Boolean(entry.name || entry.login || entry.password || entry.totpSecret || entry.notes);
+  return Boolean(entry.name || entry.login || entry.password || entry.totpSecret || entry.notes || entry.customFields?.length);
 }
 
 function normalizeHeader(value) {

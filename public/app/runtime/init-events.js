@@ -53,6 +53,8 @@ function init() {
   els.backToListButton.addEventListener("click", () => setMobileVaultPanel("list"));
   els.entryList.addEventListener("keydown", handleEntryListKeydown);
   els.entryForm.addEventListener("input", handleEntryInput);
+  els.addCustomFieldButton.addEventListener("click", addCustomField);
+  els.customFieldsList.addEventListener("click", handleCustomFieldAction);
   els.generatePasswordButton.addEventListener("click", fillGeneratedPassword);
   els.generateCopyPasswordButton.addEventListener("click", generateAndCopyPassword);
   els.passwordLengthInput.addEventListener("change", savePasswordGeneratorOptions);

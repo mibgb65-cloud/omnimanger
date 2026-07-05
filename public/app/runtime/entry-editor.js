@@ -92,6 +92,7 @@ function selectEntry(id, options = {}) {
     els.entryRecoveryCodes.value = entry.recoveryCodes;
     els.entryNotes.value = entry.notes;
   }
+  renderCustomFields(entry);
 
   showDetailSection(state.detailSection);
   if (entry && options.openDetail !== false) {
@@ -110,6 +111,7 @@ function setFormDisabled(disabled) {
     control.disabled = disabled;
   }
   els.deleteEntryButton.disabled = disabled;
+  els.addCustomFieldButton.disabled = disabled;
 }
 
 function getSelectedEntry() {
@@ -137,6 +139,7 @@ function handleEntryInput() {
   entry.totpSecret = totp.secret;
   entry.recoveryCodes = els.entryRecoveryCodes.value;
   entry.notes = els.entryNotes.value;
+  entry.customFields = readCustomFields();
   entry.updatedAt = new Date().toISOString();
 
   renderEntries();
@@ -173,9 +176,88 @@ function createEntryRecord(name) {
     backupPhone: "",
     tags: "",
     notes: "",
+    customFields: [],
     createdAt: now,
     updatedAt: now,
   };
+}
+
+function renderCustomFields(entry) {
+  if (!els.customFieldsList) return;
+  els.customFieldsList.textContent = "";
+  if (!entry) return;
+
+  const fields = normalizeCustomFields(entry.customFields);
+  if (!fields.length) {
+    const empty = document.createElement("span");
+    empty.className = "custom-fields-empty";
+    empty.textContent = "还没有自定义字段。";
+    els.customFieldsList.append(empty);
+    return;
+  }
+
+  for (const field of fields) {
+    appendCustomFieldRow(field);
+  }
+}
+
+function appendCustomFieldRow(field) {
+  const row = document.createElement("div");
+  const label = document.createElement("input");
+  const value = document.createElement("input");
+  const remove = document.createElement("button");
+  row.className = "custom-field-row";
+  row.dataset.fieldId = field.id || crypto.randomUUID();
+  label.type = "text";
+  label.name = "customFieldLabel";
+  label.placeholder = "字段名";
+  label.autocomplete = "off";
+  label.value = field.label || "";
+  value.type = "text";
+  value.name = "customFieldValue";
+  value.placeholder = "字段值";
+  value.autocomplete = "off";
+  value.value = field.value || "";
+  remove.type = "button";
+  remove.className = "custom-field-remove";
+  remove.dataset.customFieldRemove = "true";
+  remove.setAttribute("aria-label", "删除自定义字段");
+  remove.innerHTML = '<svg class="icon"><use href="/icons.svg#icon-trash"></use></svg><span>删除</span>';
+  row.append(label, value, remove);
+  els.customFieldsList.append(row);
+  initDecorativeIcons(row);
+  return row;
+}
+
+function readCustomFields() {
+  return Array.from(els.customFieldsList.querySelectorAll(".custom-field-row"))
+    .map((row) => ({
+      id: row.dataset.fieldId || crypto.randomUUID(),
+      label: row.querySelector('input[name="customFieldLabel"]')?.value || "",
+      value: row.querySelector('input[name="customFieldValue"]')?.value || "",
+    }))
+    .filter((field) => field.label.trim() || field.value.trim());
+}
+
+function addCustomField() {
+  if (!getSelectedEntry()) return;
+  const empty = els.customFieldsList.querySelector(".custom-fields-empty");
+  empty?.remove();
+  const row = appendCustomFieldRow({ id: crypto.randomUUID(), label: "", value: "" });
+  row.querySelector("input")?.focus();
+}
+
+function handleCustomFieldAction(event) {
+  const button = event.target.closest("button[data-custom-field-remove]");
+  if (!button) return;
+  button.closest(".custom-field-row")?.remove();
+  const entry = getSelectedEntry();
+  if (!entry) return;
+  entry.customFields = readCustomFields();
+  if (!entry.customFields.length) renderCustomFields(entry);
+  entry.updatedAt = new Date().toISOString();
+  renderEntries();
+  markDirty();
 }
 
 async function deleteSelectedEntry() {

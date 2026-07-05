@@ -24,6 +24,7 @@ const {
   isVaultEnvelope,
   makeAuthSecret,
   mergeImportedVault,
+  normalizeCustomFields,
   normalizeEmail,
   normalizeVault,
   normalizePasswordLength,
@@ -137,6 +138,33 @@ test("tag and security analysis helpers summarize vault issues", () => {
   assert.equal(report.duplicatePasswordGroups.length, 1);
   assert.equal(report.missingTotp.length, 2);
   assert.equal(report.missingRecovery.length, 2);
+});
+
+test("custom fields normalize and participate in search", () => {
+  const fields = normalizeCustomFields([
+    { name: "会员号", value: 0 },
+    { label: "API Key", value: "secret-token" },
+    { label: " ", value: "" },
+  ]);
+  assert.equal(fields.length, 2);
+  assert.equal(fields[0].label, "会员号");
+  assert.equal(fields[0].value, "0");
+
+  const vault = {
+    entries: [
+      {
+        id: "1",
+        name: "Internal Portal",
+        login: "ops@example.com",
+        password: "Stronger-Password-2026!",
+        customFields: fields,
+      },
+    ],
+  };
+  assert.equal(entryMatchesSearch(vault.entries[0], "secret-token", vault), true);
+  assert.equal(entryMatchesSearch(vault.entries[0], "has:custom", vault), true);
+  assert.equal(entryMatchesSearch(vault.entries[0], "missing:custom", vault), false);
+  assert.equal(normalizeVault(vault).entries[0].customFields.length, 2);
 });
 
 test("advanced search filters by tags fields risk and missing secrets", () => {
@@ -296,7 +324,9 @@ test("external import parses Bitwarden and 1Password JSON exports", () => {
     "bitwarden.json",
   );
   assert.equal(bitwarden.importSource, "bitwarden");
-  assert.match(bitwarden.entries[0].notes, /offline code/);
+  assert.deepEqual(bitwarden.entries[0].customFields.map((field) => [field.label, field.value]), [
+    ["recovery", "offline code"],
+  ]);
 
   const onePassword = parseExternalVaultImport(
     JSON.stringify({
@@ -331,6 +361,7 @@ test("external import parses Bitwarden and 1Password JSON exports", () => {
   assert.equal(onePassword.entries[0].login, "root@example.com");
   assert.equal(onePassword.entries[0].password, "aws-pass");
   assert.equal(onePassword.entries[0].totpSecret, "JBSWY3DP");
+  assert.equal(onePassword.entries[0].customFields.length, 0);
 });
 
 test("external import rejects files without account fields", () => {

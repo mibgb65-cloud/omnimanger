@@ -68,6 +68,8 @@ const els = hasDocument
       entryTotpSecret: $("entryTotpSecret"),
       entryRecoveryCodes: $("entryRecoveryCodes"),
       entryNotes: $("entryNotes"),
+      customFieldsList: $("customFieldsList"),
+      addCustomFieldButton: $("addCustomFieldButton"),
       togglePasswordButton: $("togglePasswordButton"),
       toggleTotpButton: $("toggleTotpButton"),
       deleteEntryButton: $("deleteEntryButton"),

@@ -232,6 +232,7 @@ html[data-theme="dark"] .app-dialog[data-danger="true"] button.primary {
   }
 
   .field-grid,
+  .custom-field-row,
   .detail-head,
   .overview-hero,
   .overview-grid,
@@ -252,6 +253,10 @@ html[data-theme="dark"] .app-dialog[data-danger="true"] button.primary {
 
   .overview-actions button {
     flex: 1 1 150px;
+  }
+
+  .custom-fields-head {
+    display: grid;
   }
 
   .secret-control {

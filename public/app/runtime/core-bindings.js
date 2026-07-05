@@ -19,6 +19,7 @@ Object.assign(window, {
   isVaultEnvelope: AppCore.isVaultEnvelope,
   makeAuthSecret: AppCore.makeAuthSecret,
   mergeImportedVault: AppCore.mergeImportedVault,
+  normalizeCustomFields: AppCore.normalizeCustomFields,
   normalizeEmail: AppCore.normalizeEmail,
   normalizeEntry: AppCore.normalizeEntry,
   normalizePasswordLength: AppCore.normalizePasswordLength,

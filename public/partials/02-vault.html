@@ -183,6 +183,20 @@
             </div>
 
             <div class="detail-section hidden" data-detail-section="notes">
+              <div class="custom-fields-panel" aria-labelledby="customFieldsTitle">
+                <div class="custom-fields-head">
+                  <div>
+                    <strong id="customFieldsTitle">自定义字段</strong>
+                    <span class="muted">保存会员号、安全问题、API Key 或其他账号信息。</span>
+                  </div>
+                  <button id="addCustomFieldButton" type="button">
+                    <svg class="icon"><use href="/icons.svg#icon-plus"></use></svg>
+                    <span>新增字段</span>
+                  </button>
+                </div>
+                <div id="customFieldsList" class="custom-fields-list"></div>
+              </div>
+
               <label>
                 <span class="label-text"><svg class="icon"><use href="/icons.svg#icon-note"></use></svg>备注</span>
                 <textarea id="entryNotes" name="notes" rows="10"></textarea>

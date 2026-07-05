@@ -192,6 +192,68 @@
   transition: width 200ms linear;
 }
 
+.custom-fields-panel {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-soft);
+  padding: 12px;
+}
+
+.custom-fields-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.custom-fields-head strong,
+.custom-fields-head span {
+  display: block;
+}
+
+.custom-fields-head strong {
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.custom-fields-head button {
+  min-height: 36px;
+  padding: 0 10px;
+}
+
+.custom-fields-list {
+  display: grid;
+  gap: 8px;
+}
+
+.custom-field-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.55fr) minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.custom-field-row input {
+  min-width: 0;
+}
+
+.custom-field-remove {
+  min-height: 40px;
+  padding: 0 10px;
+}
+
+.custom-field-remove .icon {
+  width: 15px;
+  height: 15px;
+}
+
+.custom-fields-empty {
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+}
+
 .bottom-bar {
   display: flex;
   align-items: center;

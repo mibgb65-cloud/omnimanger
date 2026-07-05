@@ -33,9 +33,21 @@ function normalizeEntry(entry) {
     backupPhone: entry.backupPhone || "",
     tags: entry.tags || "",
     notes: entry.notes || "",
+    customFields: normalizeCustomFields(entry.customFields),
     createdAt: entry.createdAt || new Date().toISOString(),
     updatedAt: entry.updatedAt || new Date().toISOString(),
   };
+}
+
+function normalizeCustomFields(fields) {
+  if (!Array.isArray(fields)) return [];
+  return fields
+    .map((field) => ({
+      id: field?.id || crypto.randomUUID(),
+      label: String(field?.label || field?.name || "").trim(),
+      value: String(field?.value ?? "").trim(),
+    }))
+    .filter((field) => field.label || field.value);
 }
 
 function parseSearchQuery(value) {
@@ -70,7 +82,10 @@ function stripSearchQuotes(value) {
 function entryMatchesSearch(entry, search, vault) {
   const parsed = typeof search === "string" ? parseSearchQuery(search) : search || parseSearchQuery("");
   const tags = parseEntryTags(entry.tags);
-  const haystack = [entry.name, entry.login, entry.backupEmail, entry.backupPhone, entry.tags, entry.notes]
+  const customText = normalizeCustomFields(entry.customFields)
+    .map((field) => `${field.label} ${field.value}`)
+    .join(" ");
+  const haystack = [entry.name, entry.login, entry.backupEmail, entry.backupPhone, entry.tags, entry.notes, customText]
     .join(" ")
     .toLowerCase();
   if (parsed.risk === true && !entryHasRisk(entry, vault)) return false;
@@ -91,6 +106,7 @@ function entryHasField(entry, field) {
   if (normalized === "backup") return Boolean(String(entry.backupEmail || entry.backupPhone || "").trim());
   if (normalized === "notes") return Boolean(String(entry.notes || "").trim());
   if (normalized === "login") return Boolean(String(entry.login || "").trim());
+  if (normalized === "custom") return normalizeCustomFields(entry.customFields).length > 0;
   return false;
 }
 
@@ -100,6 +116,7 @@ function normalizeSearchField(field) {
   if (["recovery", "codes", "code", "recoverycodes"].includes(value)) return "recovery";
   if (["backup", "backupemail", "backupphone", "phone", "email"].includes(value)) return "backup";
   if (["note", "notes"].includes(value)) return "notes";
+  if (["custom", "field", "fields", "extra"].includes(value)) return "custom";
   if (["password", "pass", "pwd"].includes(value)) return "password";
   if (["login", "account", "username"].includes(value)) return "login";
   return value;
@@ -435,6 +452,7 @@ export {
   isVaultEnvelope,
   makeAuthSecret,
   mergeImportedVault,
+  normalizeCustomFields,
   normalizeEntry,
   normalizeEmail,
   normalizePasswordLength,
