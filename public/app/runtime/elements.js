@@ -45,6 +45,7 @@ const els = hasDocument
       securityFilterLabel: $("securityFilterLabel"),
       clearSecurityFilterButton: $("clearSecurityFilterButton"),
       tagFilter: $("tagFilter"),
+      tagManagerList: $("tagManagerList"),
       addEntryButton: $("addEntryButton"),
       backToListButton: $("backToListButton"),
       detailEmptyState: $("detailEmptyState"),

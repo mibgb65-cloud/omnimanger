@@ -173,6 +173,7 @@ function activityTitle(type) {
       delete_entry: "删除账号",
       favorite_entry: "收藏账号",
       unfavorite_entry: "取消收藏",
+      manage_tags: "管理标签",
       generate_password: "生成密码",
       export_backup: "导出备份",
       verify_backup: "验证备份",

@@ -38,6 +38,7 @@ const {
   scorePassword,
   summarizeBackupVerification,
   summarizeImportDiff,
+  updateVaultTag,
 } = await import("../public/app.js");
 
 test("base32 and TOTP follow the RFC 6238 SHA-1 vector truncated to 6 digits", async () => {
@@ -140,6 +141,24 @@ test("tag and security analysis helpers summarize vault issues", () => {
   assert.equal(report.duplicatePasswordGroups.length, 1);
   assert.equal(report.missingTotp.length, 2);
   assert.equal(report.missingRecovery.length, 2);
+});
+
+test("tag manager helpers rename merge and delete tags", () => {
+  const vault = {
+    entries: [
+      { id: "1", name: "Main", tags: "work google" },
+      { id: "2", name: "Backup", tags: "work personal" },
+      { id: "3", name: "Solo", tags: "personal" },
+    ],
+  };
+
+  assert.deepEqual(updateVaultTag(vault, "work", "personal"), { changed: 2 });
+  assert.deepEqual(vault.entries.map((entry) => entry.tags), ["personal google", "personal", "personal"]);
+
+  assert.deepEqual(updateVaultTag(vault, "google", ""), { changed: 1 });
+  assert.deepEqual(vault.entries.map((entry) => entry.tags), ["personal", "personal", "personal"]);
+
+  assert.deepEqual(updateVaultTag(vault, "missing", "x"), { changed: 0 });
 });
 
 test("custom fields normalize and participate in search", () => {

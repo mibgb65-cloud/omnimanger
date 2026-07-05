@@ -247,6 +247,13 @@ button.security-check-item:hover {
   white-space: nowrap;
 }
 
+.tag-manager-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .settings-panel.admin-panel {
   display: grid;
 }

@@ -28,6 +28,7 @@ function renderEntries() {
 
   els.entryList.textContent = "";
   renderTagFilters();
+  renderTagManager();
   renderOverview();
   renderSecurityCheck();
   renderRiskFilterState();

@@ -22,6 +22,7 @@ Object.assign(window, {
   mergeImportedVault: AppCore.mergeImportedVault,
   normalizeCustomFields: AppCore.normalizeCustomFields,
   normalizeEmail: AppCore.normalizeEmail,
+  normalizeTag: AppCore.normalizeTag,
   normalizeEntry: AppCore.normalizeEntry,
   normalizePasswordLength: AppCore.normalizePasswordLength,
   normalizePasswordHistory: AppCore.normalizePasswordHistory,
@@ -34,4 +35,5 @@ Object.assign(window, {
   scorePassword: AppCore.scorePassword,
   summarizeBackupVerification: AppCore.summarizeBackupVerification,
   summarizeImportDiff: AppCore.summarizeImportDiff,
+  updateVaultTag: AppCore.updateVaultTag,
 });

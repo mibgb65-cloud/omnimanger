@@ -27,6 +27,7 @@ const RUNTIME_SCRIPTS = [
   "/app/runtime/backup-import.js",
   "/app/runtime/api-admin-settings.js",
   "/app/runtime/admin-audit-dialog.js",
+  "/app/runtime/tag-manager.js",
   "/app/runtime/storage-crypto-totp.js",
   "/app/runtime/generators-toast.js",
   "/app/runtime/dom-controls.js",
