@@ -91,6 +91,7 @@ const els = hasDocument
       backupStatusDetail: $("backupStatusDetail"),
       backupWizardStatus: $("backupWizardStatus"),
       backupWizardSteps: $("backupWizardSteps"),
+      backupVerificationResult: $("backupVerificationResult"),
       changePasswordButton: $("changePasswordButton"),
       logoutAllButton: $("logoutAllButton"),
       securitySummary: $("securitySummary"),

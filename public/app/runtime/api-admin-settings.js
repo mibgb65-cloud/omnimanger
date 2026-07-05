@@ -60,11 +60,12 @@ function renderBackupWizard() {
   if (!hasDocument || !els.backupWizardSteps) return;
   const importModeLabel = state.importMode === "replace" ? "整体替换" : "合并导入";
   const verified = state.lastBackupVerification;
+  const health = verified ? verified.health || getBackupVerificationHealth(verified) : null;
   const lastBackupAt = getLastBackupAt();
   const steps = [
     {
       title: "验证备份",
-      detail: verified ? `已验证 ${verified.incomingTotal} 个账号` : "先确认文件能被主密码解开",
+      detail: verified ? `${health.title}，${verified.incomingTotal} 个账号` : "先确认文件能被主密码解开",
       state: verified ? "done" : "active",
     },
     {
@@ -85,9 +86,10 @@ function renderBackupWizard() {
   ];
 
   els.backupWizardStatus.textContent = verified
-    ? `备份验证通过。当前导入模式：${importModeLabel}。`
+    ? `${health.title}。当前导入模式：${importModeLabel}。`
     : "建议先验证备份，再选择导入模式。";
   els.backupWizardSteps.textContent = "";
+  renderBackupVerificationResult(verified, health);
 
   for (const step of steps) {
     const item = document.createElement("div");
@@ -100,6 +102,20 @@ function renderBackupWizard() {
     item.append(title, detail);
     els.backupWizardSteps.append(item);
   }
+}
+
+function renderBackupVerificationResult(verified, health) {
+  if (!els.backupVerificationResult) return;
+  els.backupVerificationResult.textContent = "";
+  els.backupVerificationResult.classList.toggle("hidden", !verified);
+  if (!verified) return;
+
+  const title = document.createElement("strong");
+  const detail = document.createElement("span");
+  title.textContent = health.title;
+  detail.textContent = [...health.details, ...health.actions].join(" ");
+  els.backupVerificationResult.dataset.state = health.level;
+  els.backupVerificationResult.append(title, detail);
 }
 
 function maybeShowBackupReminder() {

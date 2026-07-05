@@ -111,13 +111,14 @@ async function verifyVaultBackup() {
     const key = await deriveVaultKey(password, salt, envelope.kdf.iterations);
     const vault = normalizeVault(await decryptVault(envelope, key));
     const summary = summarizeBackupVerification(state.vault, vault);
+    summary.health = getBackupVerificationHealth(summary);
     state.lastBackupVerification = summary;
     renderBackupWizard();
     recordActivity("verify_backup", `${summary.incomingTotal} 个账号`);
     await alertDialog(formatBackupVerification(summary), {
-      title: "备份验证通过",
+      title: summary.health.title,
       confirmLabel: "知道了",
-      icon: "icon-check-circle",
+      icon: summary.health.level === "good" ? "icon-check-circle" : "icon-alert-circle",
     });
   } catch (error) {
     showToast("备份验证失败", { message: error.message || "无法验证备份文件。", tone: "danger" });
@@ -133,9 +134,12 @@ async function verifyExportEnvelope(envelope) {
 
 function formatBackupVerification(summary) {
   const backupTimeText = formatDateTime(summary.backupUpdatedAt) || "未知";
+  const health = summary.health || getBackupVerificationHealth(summary);
   return [
     `备份可正常解密，包含 ${summary.incomingTotal} 个账号。`,
     `与当前保险箱相比：新增 ${summary.added} 个，重名 ${summary.matched} 个，当前未包含 ${summary.removed} 个。`,
+    `健康评估：${health.title}。${health.details.join(" ")}`,
+    `建议：${health.actions.join(" ")}`,
     `备份更新时间：${backupTimeText}。`,
     formatPreviewLine("新增", summary.addedEntries, summary.added),
     formatPreviewLine("重名", summary.matchedEntries, summary.matched),

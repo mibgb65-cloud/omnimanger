@@ -103,6 +103,11 @@
   background: var(--color-warning-soft);
 }
 
+.backup-status[data-state="danger"] {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
 .backup-status strong {
   color: var(--color-text);
   font-size: 13px;

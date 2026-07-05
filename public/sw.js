@@ -1,4 +1,4 @@
-const CACHE_VERSION = "2026-07-05-05";
+const CACHE_VERSION = "2026-07-05-06";
 const CACHE_NAME = `account-secret-vault-shell-${CACHE_VERSION}`;
 const SHELL_ASSETS = [
   "/",
@@ -9,6 +9,7 @@ const SHELL_ASSETS = [
   "/icons.svg",
   "/app.js",
   "/app/bootstrap.js",
+  "/app/backup-health.js",
   "/app/core.js",
   "/app/importers.js",
   "/app/tags.js",

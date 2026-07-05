@@ -8,6 +8,7 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
 export { parseExternalVaultImport } from "./importers.js";
+export { getBackupVerificationHealth } from "./backup-health.js";
 export { normalizeTag, updateVaultTag } from "./tags.js";
 
 function normalizeVault(vault) {

@@ -13,6 +13,7 @@ Object.assign(window, {
   generateTotp: AppCore.generateTotp,
   getEntryRiskScore: AppCore.getEntryRiskScore,
   getRiskEntryCount: AppCore.getRiskEntryCount,
+  getBackupVerificationHealth: AppCore.getBackupVerificationHealth,
   getVaultHealth: AppCore.getVaultHealth,
   getVaultOverview: AppCore.getVaultOverview,
   getVaultTags: AppCore.getVaultTags,
