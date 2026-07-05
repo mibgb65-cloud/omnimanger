@@ -63,6 +63,8 @@ function init() {
   els.deleteEntryButton.addEventListener("click", deleteSelectedEntry);
   els.importButton.addEventListener("click", () => els.importFileInput.click());
   els.importFileInput.addEventListener("change", importVaultBackup);
+  els.externalImportButton.addEventListener("click", () => els.externalImportFileInput.click());
+  els.externalImportFileInput.addEventListener("change", importExternalVaultFile);
   els.verifyBackupButton.addEventListener("click", () => els.verifyBackupFileInput.click());
   els.verifyBackupFileInput.addEventListener("change", verifyVaultBackup);
   els.wizardVerifyBackupButton.addEventListener("click", () => els.verifyBackupFileInput.click());

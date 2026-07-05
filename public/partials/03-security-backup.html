@@ -102,4 +102,29 @@
             </button>
           </div>
         </section>
+
+        <section class="panel settings-panel backup-panel">
+          <div class="settings-panel-head">
+            <span class="section-icon">
+              <svg class="icon"><use href="/icons.svg#icon-file-key"></use></svg>
+            </span>
+            <div>
+              <h3>外部密码库导入</h3>
+              <p class="muted">支持 Bitwarden、1Password、Chrome 和 Edge 的 CSV/JSON 导出。</p>
+            </div>
+          </div>
+          <div class="settings-list">
+            <div class="backup-status" data-state="warning">
+              <strong>只导入明文导出文件</strong>
+              <span>文件会在浏览器内解析，导入后用当前主密码重新加密并同步。完成后请删除原始导出文件。</span>
+            </div>
+          </div>
+          <div class="settings-actions">
+            <input id="externalImportFileInput" class="sr-only" type="file" accept=".csv,.json,text/csv,application/json">
+            <button id="externalImportButton" type="button">
+              <svg class="icon"><use href="/icons.svg#icon-file-key"></use></svg>
+              <span>导入外部密码库</span>
+            </button>
+          </div>
+        </section>
       </section>

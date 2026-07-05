@@ -6,6 +6,8 @@ const GENERATED_PASSWORD_LENGTH = 20;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
+export { parseExternalVaultImport } from "./importers.js";
+
 function normalizeVault(vault) {
   if (!vault || typeof vault !== "object") {
     throw new Error("保险箱内容无效。");

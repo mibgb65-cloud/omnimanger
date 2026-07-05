@@ -30,6 +30,7 @@ const {
   normalizePasswordOptions,
   parseSearchQuery,
   parseEntryTags,
+  parseExternalVaultImport,
   parseTotpInput,
   scorePassword,
   summarizeBackupVerification,
@@ -241,6 +242,99 @@ test("merge import keeps current unmatched accounts", () => {
     ["Main backup", "Backup only", "Local only"],
   );
   assert.equal(merged.entries.find((entry) => entry.login === "main@example.com").password, "backup password");
+});
+
+test("external import parses Bitwarden CSV exports", () => {
+  const csv = [
+    "folder,favorite,type,name,notes,fields,login_uri,login_username,login_password,login_totp",
+    'Work,,login,GitHub,"Main account",,https://github.com,alice@example.com,S3cret!,"otpauth://totp/GitHub:alice?secret=abcd efgh&issuer=GitHub"',
+  ].join("\n");
+
+  const vault = parseExternalVaultImport(csv, "bitwarden.csv");
+  assert.equal(vault.importSource, "bitwarden");
+  assert.equal(vault.entries.length, 1);
+  assert.equal(vault.entries[0].name, "GitHub");
+  assert.equal(vault.entries[0].login, "alice@example.com");
+  assert.equal(vault.entries[0].password, "S3cret!");
+  assert.equal(vault.entries[0].totpSecret, "ABCDEFGH");
+  assert.match(vault.entries[0].tags, /imported/);
+  assert.match(vault.entries[0].notes, /https:\/\/github.com/);
+});
+
+test("external import parses browser CSV exports", () => {
+  const csv = [
+    "name,url,username,password,note",
+    "Example,https://example.com,me@example.com,browser-pass,from chrome",
+  ].join("\n");
+
+  const vault = parseExternalVaultImport(csv, "Chrome Passwords.csv");
+  assert.equal(vault.importSource, "browser");
+  assert.equal(vault.entries[0].name, "Example");
+  assert.equal(vault.entries[0].login, "me@example.com");
+  assert.equal(vault.entries[0].password, "browser-pass");
+  assert.match(vault.entries[0].notes, /from chrome/);
+  assert.match(vault.entries[0].notes, /https:\/\/example.com/);
+});
+
+test("external import parses Bitwarden and 1Password JSON exports", () => {
+  const bitwarden = parseExternalVaultImport(
+    JSON.stringify({
+      items: [
+        {
+          name: "Mail",
+          notes: "primary mailbox",
+          fields: [{ name: "recovery", value: "offline code" }],
+          login: {
+            username: "mail@example.com",
+            password: "mail-pass",
+            totp: "JBSWY3DPEHPK3PXP",
+            uris: [{ uri: "https://mail.example.com" }],
+          },
+        },
+      ],
+    }),
+    "bitwarden.json",
+  );
+  assert.equal(bitwarden.importSource, "bitwarden");
+  assert.match(bitwarden.entries[0].notes, /offline code/);
+
+  const onePassword = parseExternalVaultImport(
+    JSON.stringify({
+      accounts: [
+        {
+          vaults: [
+            {
+              items: [
+                {
+                  overview: { title: "AWS", urls: [{ url: "https://aws.amazon.com" }] },
+                  details: {
+                    notesPlain: "root account",
+                    loginFields: [
+                      { designation: "username", value: "root@example.com" },
+                      { designation: "password", value: { concealed: "aws-pass" } },
+                    ],
+                    sections: [
+                      { fields: [{ label: "one-time password", value: "otpauth://totp/AWS?secret=jbsw y3dp" }] },
+                    ],
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    }),
+    "1password.json",
+  );
+  assert.equal(onePassword.importSource, "1password");
+  assert.equal(onePassword.entries[0].name, "AWS");
+  assert.equal(onePassword.entries[0].login, "root@example.com");
+  assert.equal(onePassword.entries[0].password, "aws-pass");
+  assert.equal(onePassword.entries[0].totpSecret, "JBSWY3DP");
+});
+
+test("external import rejects files without account fields", () => {
+  assert.throws(() => parseExternalVaultImport("folder\nWork", "unknown.csv"), /没有找到可导入的账号/);
 });
 
 test("entry risk score prioritizes missing and duplicated secrets", () => {

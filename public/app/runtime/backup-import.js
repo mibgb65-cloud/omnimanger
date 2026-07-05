@@ -19,46 +19,74 @@
     const salt = base64ToBytes(envelope.kdf.salt);
     const key = await deriveVaultKey(password, salt, envelope.kdf.iterations);
     const vault = normalizeVault(await decryptVault(envelope, key));
-    const diff = summarizeImportDiff(state.vault, vault);
-    const importMode = state.importMode === "replace" ? "replace" : "merge";
-    const importActionText = formatImportConfirmation(file.name, diff, importMode);
-    if (
-      !(await confirmDialog(importActionText, {
-        title: "导入备份",
-        confirmLabel: "继续导入",
-        danger: importMode === "replace",
-      }))
-    ) {
-      return;
-    }
-
-    if (
-      importMode === "replace" &&
-      !(await requireCurrentPassword("整体替换会覆盖当前保险箱并同步到 Cloudflare。请重新输入当前主密码。", {
-        title: "验证主密码",
-        confirmLabel: "确认替换",
-      }))
-    ) {
-      return;
-    }
-
-    if (importMode === "merge") {
-      state.vault = mergeImportedVault(state.vault, vault);
-    } else {
-      state.vault = vault;
-    }
-    state.dirty = true;
-    renderEntries();
-    selectEntry(state.vault.entries[0]?.id || null, { openDetail: false });
-    setMobileVaultPanel("list");
-    await saveVaultNow(true);
-    state.lastBackupVerification = null;
-    renderBackupWizard();
-    recordActivity("import_backup", importMode === "merge" ? "合并导入" : "整体替换");
-    showToast("备份已导入", { message: importMode === "merge" ? "已合并到当前保险箱" : `${diff.incomingTotal} 个账号`, tone: "success" });
+    await confirmAndApplyVaultImport(vault, file.name, {
+      title: "导入备份",
+      confirmLabel: "继续导入",
+      activityType: "import_backup",
+      successTitle: "备份已导入",
+    });
   } catch (error) {
     showToast("导入失败", { message: error.message || "无法读取备份文件。", tone: "danger" });
   }
+}
+
+async function importExternalVaultFile() {
+  const file = els.externalImportFileInput.files?.[0];
+  els.externalImportFileInput.value = "";
+  if (!file || !state.user) return;
+
+  try {
+    const vault = parseExternalVaultImport(await file.text(), file.name);
+    await confirmAndApplyVaultImport(vault, file.name, {
+      title: "导入外部密码库",
+      confirmLabel: "导入",
+      activityType: "import_external",
+      successTitle: "密码库已导入",
+      warning: "外部导出文件通常是明文。导入完成并确认同步后，请删除原始导出文件。",
+    });
+  } catch (error) {
+    showToast("导入失败", { message: error.message || "无法读取外部密码库。", tone: "danger" });
+  }
+}
+
+async function confirmAndApplyVaultImport(vault, fileName, options) {
+  const diff = summarizeImportDiff(state.vault, vault);
+  const importMode = state.importMode === "replace" ? "replace" : "merge";
+  const lines = [options.warning, formatImportConfirmation(fileName, diff, importMode)].filter(Boolean);
+  if (
+    !(await confirmDialog(lines.join("\n\n"), {
+      title: options.title,
+      confirmLabel: options.confirmLabel,
+      danger: importMode === "replace",
+    }))
+  ) {
+    return false;
+  }
+
+  if (
+    importMode === "replace" &&
+    !(await requireCurrentPassword("整体替换会覆盖当前保险箱并同步到 Cloudflare。请重新输入当前主密码。", {
+      title: "验证主密码",
+      confirmLabel: "确认替换",
+    }))
+  ) {
+    return false;
+  }
+
+  state.vault = importMode === "merge" ? mergeImportedVault(state.vault, vault) : vault;
+  state.dirty = true;
+  renderEntries();
+  selectEntry(state.vault.entries[0]?.id || null, { openDetail: false });
+  setMobileVaultPanel("list");
+  await saveVaultNow(true);
+  state.lastBackupVerification = null;
+  renderBackupWizard();
+  recordActivity(options.activityType, importMode === "merge" ? "合并导入" : "整体替换");
+  showToast(options.successTitle, {
+    message: importMode === "merge" ? "已合并到当前保险箱" : `${diff.incomingTotal} 个账号`,
+    tone: "success",
+  });
+  return true;
 }
 
 async function verifyVaultBackup() {

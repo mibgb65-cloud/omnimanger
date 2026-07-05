@@ -25,6 +25,7 @@ Object.assign(window, {
   normalizePasswordOptions: AppCore.normalizePasswordOptions,
   normalizeVault: AppCore.normalizeVault,
   parseEntryTags: AppCore.parseEntryTags,
+  parseExternalVaultImport: AppCore.parseExternalVaultImport,
   parseSearchQuery: AppCore.parseSearchQuery,
   parseTotpInput: AppCore.parseTotpInput,
   scorePassword: AppCore.scorePassword,
