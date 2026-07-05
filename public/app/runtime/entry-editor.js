@@ -94,6 +94,7 @@ function selectEntry(id, options = {}) {
     els.entryBackupPhone.value = entry.backupPhone;
     els.entryTags.value = entry.tags;
     els.entryPassword.value = entry.password;
+    els.entryPasswordExpiresAt.value = entry.passwordExpiresAt || "";
     els.entryTotpSecret.value = entry.totpSecret;
     els.entryRecoveryCodes.value = entry.recoveryCodes;
     els.entryNotes.value = entry.notes;
@@ -141,6 +142,7 @@ function handleEntryInput() {
   const nextPassword = els.entryPassword.value;
   maybeCaptureManualPasswordHistory(entry, nextPassword);
   entry.password = nextPassword;
+  entry.passwordExpiresAt = normalizeExpiryDate(els.entryPasswordExpiresAt.value);
   const totp = parseTotpInput(els.entryTotpSecret.value);
   if (totp.secret !== els.entryTotpSecret.value) {
     els.entryTotpSecret.value = totp.secret;
@@ -191,6 +193,7 @@ function createEntryRecord(name) {
     notes: "",
     favorite: false,
     lastUsedAt: "",
+    passwordExpiresAt: "",
     customFields: [],
     passwordHistory: [],
     createdAt: now,

@@ -121,7 +121,7 @@
             </div>
 
             <div class="detail-section hidden" data-detail-section="secret">
-              <label class="secret-row">
+              <div class="secret-row">
                 <span class="label-text"><svg class="icon"><use href="/icons.svg#icon-key"></use></svg>密码</span>
                 <div class="secret-control">
                   <input id="entryPassword" name="password" type="password" autocomplete="new-password">
@@ -139,6 +139,11 @@
                   </button>
                 </div>
                 <span id="passwordStrength" class="password-strength" data-level="empty">未填写密码</span>
+                <label class="password-expiry-row">
+                  <span class="label-text"><svg class="icon"><use href="/icons.svg#icon-clock"></use></svg>密码轮换日期</span>
+                  <input id="entryPasswordExpiresAt" name="passwordExpiresAt" type="date" autocomplete="off">
+                  <span id="passwordExpiryStatus" class="password-strength" data-level="empty">未设置轮换提醒</span>
+                </label>
                 <div class="password-generator" aria-label="密码生成选项">
                   <label>
                     <span>长度</span>
@@ -164,7 +169,7 @@
                   </div>
                   <div id="passwordHistoryList" class="password-history-list"></div>
                 </div>
-              </label>
+              </div>
 
               <label class="secret-row">
                 <span class="label-text"><svg class="icon"><use href="/icons.svg#icon-key"></use></svg>2FA TOTP 种子</span>

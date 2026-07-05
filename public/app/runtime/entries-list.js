@@ -78,7 +78,7 @@ function getFilteredEntries() {
     const tags = parseEntryTags(entry.tags);
     if (state.selectedTag && !tags.includes(state.selectedTag)) return false;
     if (state.securityFilterIds && !state.securityFilterIds.has(entry.id)) return false;
-    if (state.riskOnly && !entryHasRisk(entry, state.vault)) return false;
+    if (!state.securityFilterIds && state.riskOnly && !entryHasRisk(entry, state.vault)) return false;
     return entryMatchesSearch(entry, search, state.vault);
   });
   return sortEntries(entries, state.entrySort, state.vault);

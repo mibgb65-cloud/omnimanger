@@ -10,6 +10,7 @@ function updatePasswordStatus() {
   if (!password) {
     els.passwordStrength.textContent = "未填写密码";
     els.passwordStrength.dataset.level = "empty";
+    updatePasswordExpiryStatus(entry);
     return;
   }
 
@@ -20,6 +21,14 @@ function updatePasswordStatus() {
   const duplicateText = duplicateCount ? `，与 ${duplicateCount} 个账号重复` : "";
   els.passwordStrength.textContent = `${strength.label}${duplicateText}`;
   els.passwordStrength.dataset.level = duplicateCount ? "duplicate" : strength.level;
+  updatePasswordExpiryStatus(entry);
+}
+
+function updatePasswordExpiryStatus(entry) {
+  if (!els.passwordExpiryStatus) return;
+  const status = getEntryExpiryStatus(entry);
+  els.passwordExpiryStatus.textContent = status.label;
+  els.passwordExpiryStatus.dataset.level = status.state === "expired" ? "weak" : status.state === "soon" ? "medium" : status.state === "scheduled" ? "strong" : "empty";
 }
 
 function addEntryFromOverview() {

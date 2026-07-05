@@ -37,6 +37,7 @@ function normalizeEntry(entry) {
     backupPhone: entry.backupPhone || "",
     tags: entry.tags || "",
     notes: entry.notes || "",
+    passwordExpiresAt: entry.passwordExpiresAt || "",
     favorite: Boolean(entry.favorite),
     lastUsedAt: entry.lastUsedAt || "",
     customFields: normalizeCustomFields(entry.customFields),

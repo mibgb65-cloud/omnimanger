@@ -86,6 +86,12 @@
   font-size: 12px;
 }
 
+.password-expiry-row {
+  display: grid;
+  gap: 6px;
+  max-width: 260px;
+}
+
 .password-generator {
   display: grid;
   grid-template-columns: minmax(112px, 140px) auto auto auto;

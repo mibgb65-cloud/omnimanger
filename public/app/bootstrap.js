@@ -7,8 +7,10 @@
 ];
 
 import * as AppCore from "./core.js";
+import * as EntryExpiry from "./expiry.js";
 
 window.AppCore = AppCore;
+Object.assign(window, EntryExpiry);
 
 const RUNTIME_SCRIPTS = [
   "/app/runtime/constants.js",

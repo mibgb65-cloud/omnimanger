@@ -1,6 +1,7 @@
 function renderSecurityCheck() {
   if (!hasDocument || !els.securitySummary || !state.vault) return;
   const report = analyzeVaultSecurity(state.vault);
+  const expiry = getVaultExpiryReport(state.vault);
   renderSecurityHealth(getVaultHealth(state.vault, getLastBackupAt()));
   els.securitySummary.textContent = "";
   els.securityCheckList.textContent = "";
@@ -9,6 +10,7 @@ function renderSecurityCheck() {
     { label: "账号", value: report.totalEntries },
     { label: "问题", value: report.totalIssues },
     { label: "弱密码", value: report.weakPasswords.length },
+    { label: "到期", value: expiry.expired.length + expiry.expiringSoon.length },
     { label: "重复密码", value: report.duplicatePasswordGroups.length },
   ]) {
     const item = document.createElement("div");
@@ -21,7 +23,7 @@ function renderSecurityCheck() {
     els.securitySummary.append(item);
   }
 
-  const checks = securityReportItems(report);
+  const checks = securityReportItems(report, expiry);
   if (!checks.length) {
     const item = document.createElement("div");
     const title = document.createElement("strong");
@@ -73,7 +75,7 @@ function renderSecurityHealth(health) {
   els.securityHealth.append(score, copy);
 }
 
-function securityReportItems(report) {
+function securityReportItems(report, expiry) {
   const items = [];
   if (report.emptyPasswords.length) {
     items.push({
@@ -97,6 +99,22 @@ function securityReportItems(report) {
       title: `${report.duplicatePasswordGroups.length} 组重复密码`,
       detail: report.duplicatePasswordGroups.map((group) => entryNames(group.entries)).join("；"),
       entryIds: report.duplicatePasswordGroups.flatMap((group) => group.entries.map((entry) => entry.id)),
+    });
+  }
+  if (expiry.expired.length) {
+    items.push({
+      tone: "danger",
+      title: `${expiry.expired.length} 个账号密码已到期`,
+      detail: entryNames(expiry.expired),
+      entryIds: expiry.expired.map((entry) => entry.id),
+    });
+  }
+  if (expiry.expiringSoon.length) {
+    items.push({
+      tone: "warning",
+      title: `${expiry.expiringSoon.length} 个账号密码即将到期`,
+      detail: entryNames(expiry.expiringSoon),
+      entryIds: expiry.expiringSoon.map((entry) => entry.id),
     });
   }
   if (report.missingTotp.length) {
