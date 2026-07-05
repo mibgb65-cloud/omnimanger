@@ -29,6 +29,7 @@ function renderEntries() {
   els.entryList.textContent = "";
   renderTagFilters();
   renderTagManager();
+  renderTrashManager();
   renderOverview();
   renderSecurityCheck();
   renderRiskFilterState();

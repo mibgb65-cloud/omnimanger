@@ -6,9 +6,9 @@ const GENERATED_PASSWORD_LENGTH = 20;
 const PASSWORD_HISTORY_LIMIT = 5;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
-
 export { parseExternalVaultImport } from "./importers.js";
 export { getBackupVerificationHealth } from "./backup-health.js";
+export { deleteTrashEntry, getTrashEntries, moveEntryToTrash, restoreTrashEntry } from "./trash.js";
 export { normalizeTag, updateVaultTag } from "./tags.js";
 
 function normalizeVault(vault) {
@@ -21,6 +21,7 @@ function normalizeVault(vault) {
     createdAt: vault.createdAt || new Date().toISOString(),
     updatedAt: vault.updatedAt || new Date().toISOString(),
     entries: Array.isArray(vault.entries) ? vault.entries.map(normalizeEntry) : [],
+    trash: Array.isArray(vault.trash) ? vault.trash.map((entry) => ({ ...normalizeEntry(entry), deletedAt: entry.deletedAt || entry.updatedAt || new Date().toISOString() })) : [],
   };
 }
 
@@ -306,7 +307,7 @@ function mergeImportedVault(currentVault, incomingVault) {
   const incoming = normalizeVault(incomingVault);
   const incomingKeys = new Set(incoming.entries.map(importEntryKey));
   const keptCurrentEntries = current.entries.filter((entry) => !incomingKeys.has(importEntryKey(entry)));
-  return normalizeVault({ version: 1, createdAt: current.createdAt || incoming.createdAt, updatedAt: new Date().toISOString(), entries: [...incoming.entries, ...keptCurrentEntries] });
+  return normalizeVault({ version: 1, createdAt: current.createdAt || incoming.createdAt, updatedAt: new Date().toISOString(), entries: [...incoming.entries, ...keptCurrentEntries], trash: [...(incoming.trash || []), ...(current.trash || [])] });
 }
 
 function importEntryKey(entry) {

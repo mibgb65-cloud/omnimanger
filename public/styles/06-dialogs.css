@@ -252,7 +252,8 @@ button.security-check-item:hover {
   white-space: nowrap;
 }
 
-.tag-manager-actions {
+.tag-manager-actions,
+.trash-manager-actions {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;

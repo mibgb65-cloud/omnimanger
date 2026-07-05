@@ -420,11 +420,11 @@ async function deleteSelectedEntry() {
     return;
   }
 
-  state.vault.entries = state.vault.entries.filter((item) => item.id !== entry.id);
+  moveEntryToTrash(state.vault, entry.id);
   selectEntry(state.vault.entries[0]?.id || null, { openDetail: Boolean(state.vault.entries.length) });
   markDirty();
   recordActivity("delete_entry", entry.name || entry.login || "未命名账号");
-  showToast("账号已删除", { tone: "warning" });
+  showToast("已移到回收站", { message: "可在设置中恢复或永久删除。", tone: "warning" });
 }
 
 function fillGeneratedPassword() {
