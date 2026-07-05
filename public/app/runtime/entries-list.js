@@ -116,6 +116,22 @@ function renderSecurityFilterNotice() {
 
 function sortEntries(entries, sortMode, vault) {
   const sorted = [...entries];
+  if (sortMode === "favorite") {
+    return sorted.sort((a, b) => {
+      const favoriteDiff = Number(Boolean(b.favorite)) - Number(Boolean(a.favorite));
+      if (favoriteDiff) return favoriteDiff;
+      return compareUpdatedDesc(a, b);
+    });
+  }
+
+  if (sortMode === "used") {
+    return sorted.sort((a, b) => {
+      const usedDiff = dateValue(b.lastUsedAt) - dateValue(a.lastUsedAt);
+      if (usedDiff) return usedDiff;
+      return compareUpdatedDesc(a, b);
+    });
+  }
+
   if (sortMode === "risk") {
     return sorted.sort((a, b) => {
       const riskDiff = getEntryRiskScore(b, vault) - getEntryRiskScore(a, vault);

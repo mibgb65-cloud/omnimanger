@@ -15,6 +15,7 @@ async function copyInputValue(inputId, button = null) {
     document.execCommand("copy");
   }
   flashButtonLabel(button, "已复制");
+  recordEntryUsageForCopy(inputId);
   showToast("已复制", { message: "剪贴板会在 30 秒后尝试清空。", tone: "success" });
 }
 

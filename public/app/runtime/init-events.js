@@ -55,6 +55,7 @@ function init() {
   els.entryForm.addEventListener("input", handleEntryInput);
   els.addCustomFieldButton.addEventListener("click", addCustomField);
   els.customFieldsList.addEventListener("click", handleCustomFieldAction);
+  els.favoriteEntryButton.addEventListener("click", toggleFavoriteEntry);
   els.generatePasswordButton.addEventListener("click", fillGeneratedPassword);
   els.generateCopyPasswordButton.addEventListener("click", generateAndCopyPassword);
   els.passwordLengthInput.addEventListener("change", savePasswordGeneratorOptions);

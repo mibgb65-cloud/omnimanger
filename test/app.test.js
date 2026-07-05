@@ -169,6 +169,25 @@ test("custom fields normalize and participate in search", () => {
   assert.equal(normalizeVault(vault).entries[0].customFields.length, 2);
 });
 
+test("favorite and last used metadata normalize and search", () => {
+  const vault = normalizeVault({
+    entries: [
+      {
+        name: "Pinned",
+        favorite: true,
+        lastUsedAt: "2026-07-05T08:00:00.000Z",
+      },
+      { name: "Regular" },
+    ],
+  });
+
+  assert.equal(vault.entries[0].favorite, true);
+  assert.equal(vault.entries[0].lastUsedAt, "2026-07-05T08:00:00.000Z");
+  assert.equal(vault.entries[1].favorite, false);
+  assert.equal(entryMatchesSearch(vault.entries[0], "has:favorite", vault), true);
+  assert.equal(entryMatchesSearch(vault.entries[1], "missing:favorite", vault), true);
+});
+
 test("password history keeps recent unique old passwords", () => {
   let history = [];
   for (let index = 1; index <= 6; index += 1) {

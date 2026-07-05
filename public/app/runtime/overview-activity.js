@@ -171,6 +171,8 @@ function activityTitle(type) {
     {
       add_entry: "新增账号",
       delete_entry: "删除账号",
+      favorite_entry: "收藏账号",
+      unfavorite_entry: "取消收藏",
       generate_password: "生成密码",
       export_backup: "导出备份",
       verify_backup: "验证备份",

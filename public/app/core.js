@@ -34,6 +34,8 @@ function normalizeEntry(entry) {
     backupPhone: entry.backupPhone || "",
     tags: entry.tags || "",
     notes: entry.notes || "",
+    favorite: Boolean(entry.favorite),
+    lastUsedAt: entry.lastUsedAt || "",
     customFields: normalizeCustomFields(entry.customFields),
     passwordHistory: normalizePasswordHistory(entry.passwordHistory),
     createdAt: entry.createdAt || new Date().toISOString(),
@@ -128,6 +130,7 @@ function entryHasField(entry, field) {
   if (normalized === "notes") return Boolean(String(entry.notes || "").trim());
   if (normalized === "login") return Boolean(String(entry.login || "").trim());
   if (normalized === "custom") return normalizeCustomFields(entry.customFields).length > 0;
+  if (normalized === "favorite") return Boolean(entry.favorite);
   return false;
 }
 
@@ -138,6 +141,7 @@ function normalizeSearchField(field) {
   if (["backup", "backupemail", "backupphone", "phone", "email"].includes(value)) return "backup";
   if (["note", "notes"].includes(value)) return "notes";
   if (["custom", "field", "fields", "extra"].includes(value)) return "custom";
+  if (["favorite", "star", "pinned", "pin"].includes(value)) return "favorite";
   if (["password", "pass", "pwd"].includes(value)) return "password";
   if (["login", "account", "username"].includes(value)) return "login";
   return value;

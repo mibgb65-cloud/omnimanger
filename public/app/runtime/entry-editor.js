@@ -48,6 +48,7 @@ function handleTagFilterClick(event) {
 function renderEntryBadges(container, entry) {
   container.textContent = "";
   const badges = [
+    ...(entry.favorite ? [{ label: "收藏", tone: "good" }] : []),
     { label: entry.password ? "密码" : "无密码", tone: entry.password ? "good" : "warn" },
     { label: entry.totpSecret ? "2FA" : "无2FA", tone: entry.totpSecret ? "good" : "warn" },
     { label: entry.recoveryCodes ? "恢复码" : "无恢复码", tone: entry.recoveryCodes ? "good" : "warn" },
@@ -65,6 +66,7 @@ function formatEntryMeta(entry) {
   const parts = [];
   if (entry.login) parts.push(entry.login);
   if (entry.tags) parts.push(entry.tags);
+  if (entry.lastUsedAt) parts.push(`使用 ${formatShortDate(entry.lastUsedAt)}`);
   if (entry.updatedAt) parts.push(`更新 ${formatShortDate(entry.updatedAt)}`);
   return parts.join(" / ") || "无登录名";
 }
@@ -97,6 +99,7 @@ function selectEntry(id, options = {}) {
     els.entryNotes.value = entry.notes;
   }
   setPasswordHistorySnapshot(entry);
+  renderFavoriteState(entry);
   renderPasswordHistory(entry);
   renderCustomFields(entry);
 
@@ -118,6 +121,7 @@ function setFormDisabled(disabled) {
   }
   els.deleteEntryButton.disabled = disabled;
   els.addCustomFieldButton.disabled = disabled;
+  els.favoriteEntryButton.disabled = disabled;
 }
 
 function getSelectedEntry() {
@@ -133,6 +137,7 @@ function handleEntryInput() {
   entry.backupEmail = els.entryBackupEmail.value;
   entry.backupPhone = els.entryBackupPhone.value;
   entry.tags = els.entryTags.value;
+  entry.favorite = Boolean(entry.favorite);
   const nextPassword = els.entryPassword.value;
   maybeCaptureManualPasswordHistory(entry, nextPassword);
   entry.password = nextPassword;
@@ -184,11 +189,40 @@ function createEntryRecord(name) {
     backupPhone: "",
     tags: "",
     notes: "",
+    favorite: false,
+    lastUsedAt: "",
     customFields: [],
     passwordHistory: [],
     createdAt: now,
     updatedAt: now,
   };
+}
+
+function renderFavoriteState(entry) {
+  const active = Boolean(entry?.favorite);
+  els.favoriteEntryButton.setAttribute("aria-pressed", active ? "true" : "false");
+  els.favoriteEntryButton.dataset.active = active ? "true" : "false";
+  setInlineLabel(els.favoriteEntryButton, active ? "已收藏" : "收藏");
+}
+
+function toggleFavoriteEntry() {
+  const entry = getSelectedEntry();
+  if (!entry) return;
+  entry.favorite = !entry.favorite;
+  entry.updatedAt = new Date().toISOString();
+  renderFavoriteState(entry);
+  renderEntries();
+  markDirty();
+  recordActivity(entry.favorite ? "favorite_entry" : "unfavorite_entry", entry.name || entry.login || "未命名账号");
+}
+
+function recordEntryUsageForCopy(inputId) {
+  if (!["entryPassword", "entryTotpSecret"].includes(inputId)) return;
+  const entry = getSelectedEntry();
+  if (!entry) return;
+  entry.lastUsedAt = new Date().toISOString();
+  renderEntries();
+  markDirty();
 }
 
 function setPasswordHistorySnapshot(entry) {

@@ -71,6 +71,7 @@ const els = hasDocument
       entryNotes: $("entryNotes"),
       customFieldsList: $("customFieldsList"),
       addCustomFieldButton: $("addCustomFieldButton"),
+      favoriteEntryButton: $("favoriteEntryButton"),
       togglePasswordButton: $("togglePasswordButton"),
       toggleTotpButton: $("toggleTotpButton"),
       deleteEntryButton: $("deleteEntryButton"),

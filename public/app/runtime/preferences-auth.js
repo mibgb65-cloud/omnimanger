@@ -39,7 +39,7 @@ function initDataPreferences() {
   els.importModeSelect.value = state.importMode;
 
   const savedEntrySort = localStorage.getItem(ENTRY_SORT_KEY);
-  state.entrySort = ["updated", "risk", "name"].includes(savedEntrySort) ? savedEntrySort : "updated";
+  state.entrySort = normalizeEntrySort(savedEntrySort);
   els.entrySortSelect.value = state.entrySort;
 }
 
@@ -50,9 +50,13 @@ function saveImportModePreference() {
 }
 
 function saveEntrySortPreference() {
-  state.entrySort = ["updated", "risk", "name"].includes(els.entrySortSelect.value) ? els.entrySortSelect.value : "updated";
+  state.entrySort = normalizeEntrySort(els.entrySortSelect.value);
   localStorage.setItem(ENTRY_SORT_KEY, state.entrySort);
   renderEntries();
+}
+
+function normalizeEntrySort(value) {
+  return ["updated", "favorite", "used", "risk", "name"].includes(value) ? value : "updated";
 }
 
 function toggleRiskOnlyFilter() {

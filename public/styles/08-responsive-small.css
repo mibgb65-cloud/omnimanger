@@ -259,6 +259,11 @@ html[data-theme="dark"] .app-dialog[data-danger="true"] button.primary {
     display: grid;
   }
 
+  .detail-head-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .password-history-head,
   .password-history-item {
     align-items: stretch;
