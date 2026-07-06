@@ -12,7 +12,6 @@
     "predeploy": "npm run check && npm run e2e",
     "dev": "wrangler dev --config wrangler-dev.toml",
     "deploy:dry-run": "npm run predeploy && wrangler deploy --config wrangler.toml --dry-run",
-    "deploy": "wrangler deploy --config wrangler.toml",
-    "deploy:action": "wrangler deploy --config wrangler-action.toml"
+    "deploy": "wrangler deploy --config wrangler.toml"
   }
 }
