@@ -55,6 +55,20 @@ test("api configuration validation reports missing or weak environment settings"
   assert.match((await weakSecretResponse.json()).error, /32 characters/);
 });
 
+test("static assets keep security headers with update-friendly cache policies", async () => {
+  const env = makeEnv();
+
+  const html = await worker.fetch(new Request("https://vault.test/"), env);
+  assert.equal(html.headers.get("Cache-Control"), "no-cache");
+  assert.match(html.headers.get("Content-Security-Policy"), /default-src 'self'/);
+
+  const script = await worker.fetch(new Request("https://vault.test/app/bootstrap.js"), env);
+  assert.equal(script.headers.get("Cache-Control"), "public, max-age=300, stale-while-revalidate=86400");
+
+  const serviceWorker = await worker.fetch(new Request("https://vault.test/sw.js"), env);
+  assert.equal(serviceWorker.headers.get("Cache-Control"), "no-cache");
+});
+
 test("admin invite allows one closed-registration signup", async () => {
   const env = makeEnv();
   const admin = await register(env, "admin@example.com", "correct horse battery");

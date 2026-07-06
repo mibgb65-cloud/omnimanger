@@ -77,6 +77,15 @@ function showToast(title, options = {}) {
     copy.append(message);
   }
 
+  if (options.actionLabel && typeof options.onAction === "function") {
+    const action = document.createElement("button");
+    action.className = "toast-action";
+    action.type = "button";
+    action.textContent = options.actionLabel;
+    action.addEventListener("click", options.onAction);
+    copy.append(action);
+  }
+
   toast.append(iconWrap, copy);
   initDecorativeIcons(toast);
   els.toastRegion.prepend(toast);

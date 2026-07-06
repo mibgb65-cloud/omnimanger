@@ -10,6 +10,12 @@ from playwright.sync_api import sync_playwright
 
 
 BASE_URL = os.environ.get("E2E_BASE_URL", "http://127.0.0.1:8787")
+VISUAL_VIEWPORTS = [
+    ("mobile", {"width": 390, "height": 844}),
+    ("desktop", {"width": 1280, "height": 800}),
+    ("wide", {"width": 1920, "height": 1080}),
+    ("ultra", {"width": 2560, "height": 1440}),
+]
 
 
 def server_available():
@@ -37,6 +43,55 @@ def wait_for_input_value(locator, expected_text, timeout=5):
             return value
         time.sleep(0.1)
     raise AssertionError(f"Expected input value to contain {expected_text!r}")
+
+
+def assert_no_horizontal_overflow(page):
+    metrics = page.evaluate(
+        """() => ({
+            scrollWidth: document.documentElement.scrollWidth,
+            clientWidth: document.documentElement.clientWidth,
+            bodyWidth: document.body.getBoundingClientRect().width
+        })"""
+    )
+    assert metrics["scrollWidth"] <= metrics["clientWidth"] + 1, metrics
+    assert metrics["bodyWidth"] <= metrics["clientWidth"] + 1, metrics
+
+
+def assert_visible_elements_inside_viewport(page, selectors):
+    failures = page.evaluate(
+        """(selectors) => {
+            const width = document.documentElement.clientWidth;
+            return selectors.flatMap((selector) =>
+                Array.from(document.querySelectorAll(selector))
+                    .filter((element) => {
+                        const style = getComputedStyle(element);
+                        const rect = element.getBoundingClientRect();
+                        return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
+                    })
+                    .filter((element) => {
+                        const rect = element.getBoundingClientRect();
+                        return rect.left < -1 || rect.right > width + 1;
+                    })
+                    .map((element) => ({
+                        selector,
+                        tag: element.tagName,
+                        id: element.id,
+                        className: element.className,
+                        left: Math.round(element.getBoundingClientRect().left),
+                        right: Math.round(element.getBoundingClientRect().right),
+                        width
+                    }))
+            );
+        }""",
+        selectors,
+    )
+    assert failures == [], failures
+
+
+def assert_valid_screenshot(page):
+    image = page.screenshot(full_page=True)
+    assert image.startswith(b"\x89PNG\r\n\x1a\n")
+    assert len(image) > 5000
 
 
 def install_vault_api_mock(page, is_admin=False):
@@ -282,6 +337,38 @@ class VaultUiSmokeTest(unittest.TestCase):
             self.assertTrue(page.locator("#themeToggleButton").is_visible())
             self.assertTrue(page.locator("#unlockSubmitButton").is_visible())
             browser.close()
+
+    def test_visual_layout_screenshots_across_viewports(self):
+        page_selectors = [".topbar", ".app-page:not(.hidden)", ".panel", ".status-strip"]
+
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch()
+            try:
+                for viewport_name, viewport in VISUAL_VIEWPORTS:
+                    with self.subTest(viewport=viewport_name):
+                        page = browser.new_page(viewport=viewport)
+                        install_vault_api_mock(page, is_admin=True)
+                        open_ready_page(page)
+
+                        assert_no_horizontal_overflow(page)
+                        assert_visible_elements_inside_viewport(page, [".topbar", "#lockedView", "#unlockForm"])
+                        assert_valid_screenshot(page)
+
+                        page.locator("#registerButton").click()
+                        page.locator("#loginEmail").fill(f"visual-{viewport_name}@example.com")
+                        page.locator("#loginPassword").fill("Very-long-passphrase-2026!")
+                        page.locator("#unlockSubmitButton").click()
+                        page.locator("#lockedView.hidden").wait_for(state="attached")
+
+                        for nav_selector in ["#overviewNavButton", "#vaultNavButton", "#settingsNavButton"]:
+                            page.locator(nav_selector).click()
+                            assert_no_horizontal_overflow(page)
+                            assert_visible_elements_inside_viewport(page, page_selectors)
+                            assert_valid_screenshot(page)
+
+                        page.close()
+            finally:
+                browser.close()
 
 
 if __name__ == "__main__":

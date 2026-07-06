@@ -118,7 +118,39 @@ function init() {
   });
   window.addEventListener("hashchange", syncAppPageFromHash);
 
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
-  }
+  initServiceWorkerUpdates();
+}
+
+function initServiceWorkerUpdates() {
+  if (!("serviceWorker" in navigator)) return;
+
+  navigator.serviceWorker
+    .register("/sw.js")
+    .then((registration) => {
+      let prompted = false;
+      const notifyUpdate = () => {
+        if (prompted || !navigator.serviceWorker.controller) return;
+        prompted = true;
+        showToast("发现新版本", {
+          message: "刷新后使用最新界面和脚本。",
+          tone: "success",
+          duration: 15000,
+          actionLabel: "刷新",
+          onAction: () => location.reload(),
+        });
+      };
+
+      if (registration.waiting) notifyUpdate();
+
+      registration.addEventListener("updatefound", () => {
+        const worker = registration.installing;
+        if (!worker) return;
+        worker.addEventListener("statechange", () => {
+          if (worker.state === "installed") notifyUpdate();
+        });
+      });
+
+      navigator.serviceWorker.addEventListener("controllerchange", notifyUpdate);
+    })
+    .catch(() => {});
 }

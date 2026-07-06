@@ -56,9 +56,12 @@ function json(data, status = 200, extraHeaders = {}) {
   });
 }
 
-function withSecurityHeaders(response) {
+function withSecurityHeaders(response, extraHeaders = {}) {
   const next = new Response(response.body, response);
   for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+    next.headers.set(key, value);
+  }
+  for (const [key, value] of Object.entries(extraHeaders)) {
     next.headers.set(key, value);
   }
   return next;
