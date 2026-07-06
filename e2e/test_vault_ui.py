@@ -94,6 +94,10 @@ def assert_valid_screenshot(page):
     assert len(image) > 5000
 
 
+def element_rect(page, selector):
+    return page.locator(selector).bounding_box()
+
+
 def install_vault_api_mock(page, is_admin=False):
     state = {
         "envelope": None,
@@ -336,6 +340,15 @@ class VaultUiSmokeTest(unittest.TestCase):
             self.assertTrue(page.locator("#unlockForm").is_visible())
             self.assertTrue(page.locator("#themeToggleButton").is_visible())
             self.assertTrue(page.locator("#unlockSubmitButton").is_visible())
+            topbar_rect = element_rect(page, ".topbar")
+            form_rect = element_rect(page, "#unlockForm")
+            submit_rect = element_rect(page, "#unlockSubmitButton")
+            self.assertIsNotNone(topbar_rect)
+            self.assertIsNotNone(form_rect)
+            self.assertIsNotNone(submit_rect)
+            self.assertLess(topbar_rect["height"], 180)
+            self.assertLess(form_rect["y"], 220)
+            self.assertLessEqual(submit_rect["y"] + submit_rect["height"], 844)
             browser.close()
 
     def test_visual_layout_screenshots_across_viewports(self):

@@ -175,6 +175,16 @@ html[data-theme="dark"] .app-dialog[data-danger="true"] button.primary {
   .topbar {
     align-items: flex-start;
     flex-direction: column;
+    justify-content: flex-start;
+  }
+
+  .brand,
+  .status-strip {
+    flex: none;
+  }
+
+  .brand {
+    width: 100%;
   }
 
   .app-nav,
@@ -194,6 +204,7 @@ html[data-theme="dark"] .app-dialog[data-danger="true"] button.primary {
 
   .status-strip {
     display: grid;
+    align-items: stretch;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
