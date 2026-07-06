@@ -3,25 +3,25 @@ html[data-theme="dark"] .app-nav button,
 html[data-theme="dark"] .auth-mode button {
   border-color: transparent;
   background: transparent;
-  color: #c7c7c7;
+  color: var(--color-text-secondary);
 }
 
 html[data-theme="dark"] .app-nav button[data-active="true"],
 html[data-theme="dark"] .auth-mode button[data-active="true"] {
-  background: #2f2f2f;
-  color: #f4f4f4;
+  background: var(--color-surface);
+  color: var(--color-text);
 }
 
 .unlock-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 0.82fr);
-  gap: 16px;
+  gap: 14px;
   align-items: start;
 }
 
 .unlock-panel,
 .facts-panel {
-  padding: 24px;
+  padding: 22px;
 }
 
 .unlock-panel {
@@ -41,7 +41,7 @@ html[data-theme="dark"] .auth-mode button[data-active="true"] {
 
 .facts-panel {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   background: var(--color-surface-soft);
 }
 
@@ -49,7 +49,7 @@ html[data-theme="dark"] .auth-mode button[data-active="true"] {
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-md);
   background: var(--color-surface);
-  padding: 13px 14px;
+  padding: 12px;
 }
 
 .fact strong,
@@ -80,7 +80,7 @@ html[data-theme="dark"] .auth-mode button[data-active="true"] {
 .vault-grid {
   display: grid;
   grid-template-columns: minmax(280px, clamp(340px, 24vw, 520px)) minmax(0, 1fr);
-  gap: 16px;
+  gap: 14px;
   min-height: calc(100vh - 128px);
 }
 
@@ -92,14 +92,15 @@ html[data-theme="dark"] .auth-mode button[data-active="true"] {
 .list-panel {
   display: grid;
   grid-template-rows: auto auto auto minmax(0, 1fr);
+  background: var(--color-surface-soft);
   overflow: hidden;
 }
 
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 46px;
-  gap: 12px;
-  padding: 14px;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  gap: 10px;
+  padding: 12px;
   border-bottom: 1px solid var(--color-border-subtle);
 }
 
@@ -107,7 +108,7 @@ html[data-theme="dark"] .auth-mode button[data-active="true"] {
   display: grid;
   gap: 8px;
   border-bottom: 1px solid var(--color-border-subtle);
-  padding: 10px 14px;
+  padding: 10px 12px;
 }
 
 .sort-option {
@@ -118,7 +119,7 @@ html[data-theme="dark"] .auth-mode button[data-active="true"] {
 }
 
 .list-options select {
-  height: 36px;
+  height: 34px;
   font-size: 13px;
 }
 
@@ -127,10 +128,10 @@ html[data-theme="dark"] .auth-mode button[data-active="true"] {
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 10px;
-  min-height: 36px;
+  min-height: 34px;
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-md);
-  background: var(--color-surface-soft);
+  background: var(--color-surface);
   color: var(--color-text-secondary);
   padding: 6px 10px;
 }
@@ -239,7 +240,7 @@ html[data-theme="dark"] .auth-mode button[data-active="true"] {
   gap: 6px;
   overflow-x: auto;
   border-bottom: 1px solid var(--color-border-subtle);
-  padding: 9px 10px;
+  padding: 8px 10px;
 }
 
 .tag-filter:empty {
@@ -247,7 +248,7 @@ html[data-theme="dark"] .auth-mode button[data-active="true"] {
 }
 
 .tag-filter button {
-  min-height: 30px;
+  min-height: 28px;
   border-radius: var(--radius-pill);
   color: var(--color-text-secondary);
   font-size: 12px;
@@ -266,9 +267,9 @@ html[data-theme="dark"] .auth-mode button[data-active="true"] {
 }
 
 .icon-button {
-  width: 46px;
-  min-width: 46px;
-  min-height: 46px;
+  width: 42px;
+  min-width: 42px;
+  min-height: 42px;
   padding: 0;
   border-color: var(--color-accent-border);
   background: var(--color-accent-soft);

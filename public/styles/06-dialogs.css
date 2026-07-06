@@ -44,23 +44,23 @@
   gap: 8px;
   flex-wrap: wrap;
   border-top: 1px solid var(--color-border-subtle);
-  padding-top: 12px;
+  padding-top: 10px;
 }
 
 .backup-steps {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
 }
 
 .backup-step {
   display: grid;
   gap: 4px;
-  min-height: 86px;
+  min-height: 82px;
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-md);
   background: var(--color-surface-soft);
-  padding: 12px;
+  padding: 10px;
 }
 
 .backup-step[data-state="active"] {
@@ -90,7 +90,7 @@
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-md);
   background: var(--color-surface-soft);
-  padding: 10px 11px;
+  padding: 10px;
 }
 
 .backup-status[data-state="ok"] {
@@ -122,7 +122,7 @@
 
 .security-summary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 8px;
 }
 
@@ -163,7 +163,7 @@
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-md);
   background: var(--color-surface-soft);
-  padding: 10px 11px;
+  padding: 10px;
 }
 
 button.security-check-item {
@@ -291,7 +291,7 @@ button.security-check-item:hover {
 #entryForm {
   display: grid;
   align-content: start;
-  gap: 16px;
+  gap: 14px;
   overflow: auto;
-  padding: 18px;
+  padding: 16px;
 }

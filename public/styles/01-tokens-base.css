@@ -7,62 +7,62 @@ body[data-theme="light"] {
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
     monospace;
 
-  --color-bg: #ffffff;
-  --color-bg-subtle: #fafafa;
-  --color-bg-muted: #f4f4f2;
+  --color-bg: #f6f7f9;
+  --color-bg-subtle: #fbfcfd;
+  --color-bg-muted: #eef1f5;
   --color-surface: #ffffff;
-  --color-surface-soft: #f7f7f5;
-  --color-surface-muted: #eeeeeb;
-  --color-surface-hover: #ececea;
-  --color-surface-active: #e6e6e3;
-  --color-border-subtle: #ececec;
-  --color-border: #dedede;
-  --color-border-strong: #c9c9c9;
-  --color-text: #0d0d0d;
-  --color-text-secondary: #4f4f4f;
-  --color-text-tertiary: #777777;
-  --color-text-disabled: #a3a3a3;
+  --color-surface-soft: #f8fafc;
+  --color-surface-muted: #edf1f6;
+  --color-surface-hover: #f1f5f9;
+  --color-surface-active: #e7edf4;
+  --color-border-subtle: #e6e9ee;
+  --color-border: #d4dae3;
+  --color-border-strong: #aeb8c6;
+  --color-text: #111827;
+  --color-text-secondary: #4b5563;
+  --color-text-tertiary: #6b7280;
+  --color-text-disabled: #9ca3af;
   --color-text-inverse: #ffffff;
-  --color-accent: #10a37f;
-  --color-accent-hover: #0d8f70;
-  --color-accent-soft: #e7f6f1;
-  --color-accent-border: #b9e5d8;
-  --color-warning: #b7791f;
-  --color-warning-soft: #fff6df;
-  --color-danger: #d92d20;
-  --color-danger-soft: #fff0ee;
-  --color-focus: rgba(16, 163, 127, 0.28);
+  --color-accent: #0f8f75;
+  --color-accent-hover: #0b755f;
+  --color-accent-soft: #e8f7f3;
+  --color-accent-border: #b8e3d7;
+  --color-warning: #b45309;
+  --color-warning-soft: #fff7ed;
+  --color-danger: #dc2626;
+  --color-danger-soft: #fef2f2;
+  --color-focus: rgba(15, 143, 117, 0.24);
 
-  --radius-xs: 6px;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
-  --radius-2xl: 24px;
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-2xl: 12px;
   --radius-pill: 999px;
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.12);
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-sm: 0 8px 24px rgba(15, 23, 42, 0.07);
+  --shadow-md: 0 18px 48px rgba(15, 23, 42, 0.14);
 }
 
 [data-theme="dark"],
 body[data-theme="dark"] {
   color-scheme: dark;
-  --color-bg: #212121;
-  --color-bg-subtle: #252525;
-  --color-bg-muted: #2b2b2b;
-  --color-surface: #2f2f2f;
-  --color-surface-soft: #333333;
-  --color-surface-muted: #3a3a3a;
-  --color-surface-hover: #424242;
-  --color-surface-active: #4a4a4a;
-  --color-border-subtle: #3a3a3a;
-  --color-border: #4a4a4a;
-  --color-border-strong: #5c5c5c;
-  --color-text: #f4f4f4;
-  --color-text-secondary: #c7c7c7;
-  --color-text-tertiary: #9a9a9a;
-  --color-text-disabled: #6f6f6f;
+  --color-bg: #0d0f12;
+  --color-bg-subtle: #111418;
+  --color-bg-muted: #171b21;
+  --color-surface: #15181d;
+  --color-surface-soft: #1a1f26;
+  --color-surface-muted: #242a33;
+  --color-surface-hover: #262d36;
+  --color-surface-active: #303844;
+  --color-border-subtle: #262c35;
+  --color-border: #343c47;
+  --color-border-strong: #505b6b;
+  --color-text: #f8fafc;
+  --color-text-secondary: #cbd5e1;
+  --color-text-tertiary: #94a3b8;
+  --color-text-disabled: #64748b;
   --color-text-inverse: #0d0d0d;
   --color-accent: #19c37d;
   --color-accent-hover: #25d694;
@@ -95,13 +95,13 @@ body {
 }
 
 html[data-theme="light"] body {
-  background: #ffffff;
-  color: #0d0d0d;
+  background: #f6f7f9;
+  color: #111827;
 }
 
 html[data-theme="dark"] body {
-  background: #212121;
-  color: #f4f4f4;
+  background: #0d0f12;
+  color: #f8fafc;
 }
 
 button,
@@ -176,14 +176,14 @@ button {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 40px;
+  min-height: 38px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
   color: var(--color-text);
   cursor: pointer;
-  font-weight: 500;
-  padding: 0 16px;
+  font-weight: 550;
+  padding: 0 14px;
   transition:
     background-color 160ms ease,
     border-color 160ms ease,
@@ -198,7 +198,7 @@ button:hover {
 }
 
 button:active {
-  transform: scale(0.985);
+  transform: none;
 }
 
 button:disabled {
@@ -262,8 +262,8 @@ select {
 
 input,
 select {
-  height: 42px;
-  padding: 0 14px;
+  height: 40px;
+  padding: 0 12px;
 }
 
 textarea {
