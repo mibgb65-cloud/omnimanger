@@ -23,6 +23,7 @@
   min-height: 220px;
   overflow: auto;
   padding: 8px;
+  scrollbar-gutter: stable;
 }
 
 .empty-state {

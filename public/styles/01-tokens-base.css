@@ -79,6 +79,10 @@ body[data-theme="dark"] {
   box-sizing: border-box;
 }
 
+html {
+  scrollbar-gutter: stable;
+}
+
 body {
   min-height: 100vh;
   margin: 0;
