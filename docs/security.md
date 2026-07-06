@@ -1,6 +1,6 @@
 # Security Notes
 
-Account Secret Vault is designed as a zero-knowledge vault for personal account recovery data. The server stores encrypted vault envelopes, session data, invite metadata, and login verification material. It should not receive plaintext account passwords, TOTP seeds, recovery codes, or notes.
+omnimanger is designed as a zero-knowledge vault for personal account recovery data. The server stores encrypted vault envelopes, session data, invite metadata, and login verification material. It should not receive plaintext account passwords, TOTP seeds, recovery codes, or notes.
 
 ## What The Server Stores
 

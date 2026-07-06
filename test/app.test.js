@@ -453,6 +453,7 @@ test("entry risk score prioritizes missing and duplicated secrets", () => {
 });
 
 test("vault overview summarizes counts backup and local status", () => {
+  const recentBackupAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
   const vault = {
     entries: [
       {
@@ -466,7 +467,7 @@ test("vault overview summarizes counts backup and local status", () => {
     ],
   };
 
-  const overview = getVaultOverview(vault, new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), true, 15);
+  const overview = getVaultOverview(vault, recentBackupAt, true, 15);
   assert.equal(overview.totalEntries, 2);
   assert.equal(overview.riskEntries, 1);
   assert.equal(overview.backupStale, false);

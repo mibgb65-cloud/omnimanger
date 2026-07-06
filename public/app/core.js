@@ -15,16 +15,17 @@ function normalizeVault(vault) {
   if (!vault || typeof vault !== "object") {
     throw new Error("保险箱内容无效。");
   }
-
+  const now = new Date().toISOString();
+  const lastBackupAt = vault.lastBackupAt && !Number.isNaN(new Date(vault.lastBackupAt).getTime()) ? String(vault.lastBackupAt) : "";
   return {
     version: 1,
-    createdAt: vault.createdAt || new Date().toISOString(),
-    updatedAt: vault.updatedAt || new Date().toISOString(),
+    createdAt: vault.createdAt || now,
+    updatedAt: vault.updatedAt || now,
+    lastBackupAt,
     entries: Array.isArray(vault.entries) ? vault.entries.map(normalizeEntry) : [],
     trash: Array.isArray(vault.trash) ? vault.trash.map((entry) => ({ ...normalizeEntry(entry), deletedAt: entry.deletedAt || entry.updatedAt || new Date().toISOString() })) : [],
   };
 }
-
 function normalizeEntry(entry) {
   return {
     id: entry.id || crypto.randomUUID(),
@@ -171,15 +172,16 @@ function parseEntryTags(value) {
 
 function getVaultOverview(vault, lastBackupAt = "", cacheDisabled = false, autoLockMinutes = 5) {
   const totalEntries = Array.isArray(vault?.entries) ? vault.entries.length : 0;
-  const backupStale = isBackupStale(lastBackupAt);
-  const backupTimeText = lastBackupAt ? formatDateTime(lastBackupAt) || "未知时间" : "";
-  const health = getVaultHealth(vault, lastBackupAt);
+  const backupAt = lastBackupAt || vault?.lastBackupAt || "";
+  const backupStale = isBackupStale(backupAt);
+  const backupTimeText = backupAt ? formatDateTime(backupAt) || "未知时间" : "";
+  const health = getVaultHealth(vault, backupAt);
   return {
     totalEntries,
     riskEntries: getRiskEntryCount(vault),
     health,
     backupStale,
-    backupDetail: lastBackupAt
+    backupDetail: backupAt
       ? `上次导出：${backupTimeText}。${backupStale ? `已超过 ${BACKUP_REMINDER_DAYS} 天。` : "当前备份正常。"}`
       : "还没有导出备份，建议先保存一份离线副本。",
     localCacheLabel: cacheDisabled ? "已关闭" : "已开启",
@@ -189,26 +191,24 @@ function getVaultOverview(vault, lastBackupAt = "", cacheDisabled = false, autoL
 
 function getVaultHealth(vault, lastBackupAt = "") {
   const report = analyzeVaultSecurity(vault);
-  if (!report.totalEntries) return { score: 0, level: "empty", label: "尚未开始", reasons: ["添加账号后开始评分"] };
+  if (!report.totalEntries) return { score: 0, level: "empty", label: "尚未开始", reasons: ["新增第一个账号后开始评分"] };
+  const backupAt = lastBackupAt || vault?.lastBackupAt || "";
   const penalties = [
     { count: report.emptyPasswords.length, weight: 18, label: "缺少密码" },
     { count: report.weakPasswords.length, weight: 12, label: "弱密码" },
     { count: report.duplicatePasswordGroups.length, weight: 15, label: "重复密码" },
     { count: report.missingTotp.length, weight: 8, label: "缺少 2FA" },
     { count: report.missingRecovery.length, weight: 6, label: "缺少恢复码" },
-    { count: isBackupStale(lastBackupAt) ? 1 : 0, weight: 10, label: "备份过期或缺失" },
+    { count: isBackupStale(backupAt) ? 1 : 0, weight: 10, label: "备份过期或缺失" },
   ];
   const score = Math.max(0, Math.min(100, 100 - penalties.reduce((sum, item) => sum + item.count * item.weight, 0)));
-  const level = score >= 85 ? "good" : score >= 60 ? "warning" : "danger";
+  const level = score >= 85 ? "good" : score >= 50 ? "warning" : "danger";
   const reasons = penalties.filter((item) => item.count > 0).map((item) => `${item.label} ${item.count} 项`);
   return { score, level, label: healthLabel(level), reasons };
 }
 
 function healthLabel(level) {
-  if (level === "good") return "状态良好";
-  if (level === "warning") return "建议处理";
-  if (level === "danger") return "需要尽快处理";
-  return "尚未开始";
+  return { good: "状态良好", warning: "建议完善", danger: "需要处理" }[level] || "尚未开始";
 }
 
 function analyzeVaultSecurity(vault) {

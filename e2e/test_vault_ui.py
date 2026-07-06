@@ -95,6 +95,20 @@ def assert_valid_screenshot(page):
     assert len(image) > 5000
 
 
+def assert_decorative_icons_hidden(page):
+    failures = page.evaluate(
+        """() => Array.from(document.querySelectorAll(".icon"))
+            .filter((icon) => icon.getAttribute("aria-hidden") !== "true" || icon.getAttribute("focusable") !== "false")
+            .map((icon) => ({
+                tag: icon.tagName,
+                className: icon.getAttribute("class"),
+                ariaHidden: icon.getAttribute("aria-hidden"),
+                focusable: icon.getAttribute("focusable")
+            }))"""
+    )
+    assert failures == [], failures
+
+
 def element_rect(page, selector):
     return page.locator(selector).bounding_box()
 
@@ -288,10 +302,12 @@ class VaultUiSmokeTest(unittest.TestCase):
             page.locator("#loginPassword").fill(password)
             page.locator("#unlockSubmitButton").click()
             page.locator("#lockedView.hidden").wait_for(state="attached")
+            page.locator("#overviewAccountCount").get_by_text("0", exact=True).wait_for()
             page.locator("#vaultNavButton").click()
             page.locator("#vaultView").wait_for()
             page.locator("#saveStatus").get_by_text("已同步").wait_for()
 
+            page.locator("#addEntryButton").click()
             page.locator("#entryName").fill("GitHub 主账号")
             page.locator("#entryLogin").fill("github@example.com")
             page.locator("button[data-detail-tab='secret']").click()
@@ -386,6 +402,7 @@ class VaultUiSmokeTest(unittest.TestCase):
 
                         assert_no_horizontal_overflow(page)
                         assert_visible_elements_inside_viewport(page, [".topbar", "#lockedView", "#unlockForm"])
+                        assert_decorative_icons_hidden(page)
                         assert_valid_screenshot(page)
 
                         page.locator("#registerButton").click()
@@ -400,6 +417,7 @@ class VaultUiSmokeTest(unittest.TestCase):
                                 assert_tablet_overview_uses_two_column_metrics(page)
                             assert_no_horizontal_overflow(page)
                             assert_visible_elements_inside_viewport(page, page_selectors)
+                            assert_decorative_icons_hidden(page)
                             assert_valid_screenshot(page)
 
                         page.close()

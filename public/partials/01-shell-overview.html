@@ -7,7 +7,7 @@
           </span>
           <div>
             <p class="eyebrow">Zero-knowledge vault</p>
-            <h1>账号保险箱</h1>
+            <h1>omnimanger</h1>
           </div>
         </div>
         <nav id="appNav" class="app-nav hidden" aria-label="主导航">
@@ -35,11 +35,11 @@
         <div class="status-strip">
           <span id="lockStatus" class="status-pill">
             <svg class="icon"><use href="/icons.svg#icon-lock"></use></svg>
-            <span>Locked</span>
+            <span>未解锁</span>
           </span>
           <span id="syncStatus" class="status-pill neutral">
             <svg class="icon"><use href="/icons.svg#icon-user"></use></svg>
-            <span>Signed out</span>
+            <span>未登录</span>
           </span>
           <span id="sessionStatus" class="status-pill neutral hidden">
             <svg class="icon"><use href="/icons.svg#icon-clock"></use></svg>
@@ -59,7 +59,7 @@
         <form id="unlockForm" class="panel unlock-panel" autocomplete="off">
           <div class="panel-heading">
             <h2 id="unlockTitle"><svg class="icon"><use href="/icons.svg#icon-lock"></use></svg>登录</h2>
-            <span class="muted">Cloudflare KV stores encrypted vaults only</span>
+            <span class="muted">Cloudflare KV 只保存加密密文</span>
           </div>
 
           <div class="auth-mode" role="tablist" aria-label="登录或注册">

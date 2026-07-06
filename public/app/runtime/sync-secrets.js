@@ -190,7 +190,8 @@ async function exportVaultBackup() {
   }
 
   try {
-    const envelope = await encryptVault(state.vault, state.key);
+    const exportedAt = new Date().toISOString();
+    const envelope = await encryptVault({ ...state.vault, lastBackupAt: exportedAt }, state.key);
     envelope.remoteRevision = state.remoteRevision;
     await verifyExportEnvelope(envelope);
     const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: "application/json" });
@@ -200,7 +201,7 @@ async function exportVaultBackup() {
     link.download = `account-vault-${new Date().toISOString().slice(0, 10)}.json`;
     link.click();
     URL.revokeObjectURL(url);
-    recordBackupExport();
+    await recordBackupExport(exportedAt);
     recordActivity("export_backup", link.download);
     showToast("已导出并校验备份", { message: link.download, tone: "success" });
   } catch (error) {

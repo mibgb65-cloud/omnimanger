@@ -31,13 +31,14 @@ async function requireCurrentPassword(message, options = {}) {
   }
 }
 
-function recordBackupExport() {
+async function recordBackupExport(timestamp = new Date().toISOString()) {
   if (!state.user) return;
-  const timestamp = new Date().toISOString();
+  if (state.vault) state.vault.lastBackupAt = timestamp;
   localStorage.setItem(getBackupStatusKey(state.user.id), timestamp);
   renderBackupStatus();
   renderBackupWizard();
   renderOverview();
+  await saveVaultNow(false);
 }
 
 function renderBackupStatus() {
@@ -136,7 +137,7 @@ function maybeShowBackupReminder() {
 
 function getLastBackupAt() {
   if (!state.user) return "";
-  return localStorage.getItem(getBackupStatusKey(state.user.id)) || "";
+  return state.vault?.lastBackupAt || localStorage.getItem(getBackupStatusKey(state.user.id)) || "";
 }
 
 function getBackupStatusKey(userId) {

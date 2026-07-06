@@ -82,8 +82,8 @@ function renderOverviewRiskList() {
     const title = document.createElement("strong");
     const detail = document.createElement("span");
     empty.className = "overview-empty";
-    title.textContent = "当前没有明显风险";
-    detail.textContent = "安全中心仍可查看完整检查结果。";
+    title.textContent = state.vault.entries.length ? "当前没有明显风险" : "还没有账号";
+    detail.textContent = state.vault.entries.length ? "安全中心仍可查看完整检查结果。" : "新增第一个账号后，这里会显示优先处理项。";
     empty.append(title, detail);
     els.overviewRiskList.append(empty);
     return;

@@ -29,8 +29,10 @@ function renderSecurityCheck() {
     const title = document.createElement("strong");
     const detail = document.createElement("span");
     item.className = "security-check-item";
-    title.textContent = "当前没有明显风险";
-    detail.textContent = "没有发现弱密码、重复密码或缺失 2FA/恢复码的账号。";
+    title.textContent = report.totalEntries ? "当前没有明显风险" : "还没有账号";
+    detail.textContent = report.totalEntries
+      ? "没有发现弱密码、重复密码或缺失 2FA/恢复码的账号。"
+      : "新增第一个账号后，安全中心会开始检查弱密码、重复密码和缺失项。";
     item.append(title, detail);
     els.securityCheckList.append(item);
     return;

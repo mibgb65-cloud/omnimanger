@@ -228,9 +228,9 @@ function lockVault() {
   els.backupView.classList.add("hidden");
   els.settingsView.classList.add("hidden");
   clearAppHash();
-  setInlineLabel(els.lockStatus, "Locked");
+  setInlineLabel(els.lockStatus, "未解锁");
   setInlineIcon(els.lockStatus, "icon-lock");
-  setInlineLabel(els.syncStatus, "Signed out");
+  setInlineLabel(els.syncStatus, "未登录");
   els.syncStatus.classList.add("neutral");
   els.sessionStatus.classList.add("hidden");
   setSaveStatus("未解锁", "locked");

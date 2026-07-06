@@ -47,7 +47,9 @@ async function createEmptyVault(password) {
     version: 1,
     createdAt: now,
     updatedAt: now,
-    entries: [createEntryRecord("Google 账号")],
+    lastBackupAt: "",
+    entries: [],
+    trash: [],
   };
   state.key = key;
   state.salt = salt;
@@ -58,7 +60,7 @@ function showVault() {
   els.lockedView.classList.add("hidden");
   els.appNav.classList.remove("hidden");
   showAppPage(getHashAppPage(), { replaceHash: true });
-  setInlineLabel(els.lockStatus, "Unlocked");
+  setInlineLabel(els.lockStatus, "已解锁");
   setInlineIcon(els.lockStatus, "icon-unlock");
   setInlineLabel(els.syncStatus, state.user.email);
   els.syncStatus.classList.remove("neutral");

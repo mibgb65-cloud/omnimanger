@@ -1,7 +1,7 @@
 {
-  "name": "account-secret-vault",
+  "name": "omnimanger",
   "version": "0.1.0",
-  "description": "A client-side encrypted account secret vault for Cloudflare Workers and KV.",
+  "description": "A client-side encrypted account manager for Cloudflare Workers and KV.",
   "private": true,
   "license": "MIT",
   "type": "module",
