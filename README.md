@@ -1,4 +1,4 @@
-# Account Secret Vault
+# omnimanger
 
 一个可部署到 Cloudflare Workers 的账号信息保险箱。邮箱、密码、2FA TOTP 种子、恢复码和备注会在浏览器内用主密码加密；Cloudflare KV 只保存加密后的 envelope。
 
