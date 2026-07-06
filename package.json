@@ -10,8 +10,9 @@
     "test": "node --test",
     "e2e": "python -m unittest discover -s e2e -p \"*.py\"",
     "predeploy": "npm run check && npm run e2e",
-    "dev": "wrangler dev --local --port 8787",
-    "deploy:dry-run": "npm run predeploy && wrangler deploy --dry-run",
-    "deploy": "wrangler deploy"
+    "dev": "wrangler dev --config wrangler-dev.toml",
+    "deploy:dry-run": "npm run predeploy && wrangler deploy --config wrangler.toml --dry-run",
+    "deploy": "wrangler deploy --config wrangler.toml",
+    "deploy:action": "wrangler deploy --config wrangler-action.toml"
   }
 }

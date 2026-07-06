@@ -35,6 +35,8 @@
    npm run dev
    ```
 
+   `npm run dev` 会使用 `wrangler-dev.toml`，默认监听 `http://127.0.0.1:8787`。如果存在 `.dev.vars`，Wrangler 本地开发会优先使用其中的变量。
+
 4. 打开 `http://localhost:8787`，先用 `ADMIN_EMAIL` 对应邮箱注册主管理员账号。
 
 ## 项目结构
@@ -56,6 +58,31 @@ docs/security.md    安全模型和运维注意事项
 
 ## 部署到 Cloudflare
 
+### GitHub Actions 部署
+
+项目现在提供了和 `cloud-mail` 类似的 Actions 部署方式：`wrangler-action.toml` 使用占位符，工作流会从 GitHub Secrets / Variables 生成最终配置、准备 KV，然后部署到 Cloudflare Workers。
+
+1. 在 GitHub 仓库的 Settings → Secrets and variables → Actions 里添加：
+
+   | 名称 | 必需 | 用途 |
+   | --- | :--: | --- |
+   | `CLOUDFLARE_API_TOKEN` | ✅ | Cloudflare API token，需要 Workers 和 KV 权限 |
+   | `CLOUDFLARE_ACCOUNT_ID` | ✅ | Cloudflare 账户 ID |
+   | `SESSION_SECRET` | ✅ | 至少 32 个字符，用于 session 签名 |
+   | `AUTH_PEPPER` | ✅ | 至少 32 个字符，用于登录 verifier 加固 |
+   | `ADMIN_EMAIL` | ✅ | 主管理员邮箱 |
+   | `NAME` | ❌ | Worker 名称，默认 `account-secret-vault` |
+   | `CUSTOM_DOMAIN` | ❌ | 自定义域名；为空时使用 workers.dev |
+   | `KV_NAMESPACE_ID` | ❌ | 已有 KV namespace ID；为空时工作流会按 `NAME` 查找或创建 |
+
+2. 推送到 `main`，或在 Actions 页面手动运行 `Deploy account-secret-vault to Cloudflare Workers`。
+
+3. 第一次打开部署后的地址时，用 `ADMIN_EMAIL` 对应邮箱注册主管理员账号。
+
+`SESSION_SECRET` 和 `AUTH_PEPPER` 会通过 Wrangler Secrets 写入 Cloudflare，不会写入 `wrangler-action.toml` 的 `[vars]`。
+
+### 手动部署
+
 1. 登录 Wrangler：
 
    ```powershell
@@ -70,37 +97,27 @@ docs/security.md    安全模型和运维注意事项
 
 3. 把命令输出里的 `id` 填到 `wrangler.toml` 的 `[[kv_namespaces]]` 里。
 
-4. 设置 session 签名 secret：
+4. 设置生产环境变量和 secret：
 
    ```powershell
    wrangler secret put SESSION_SECRET
-   ```
-
-5. 设置登录 verifier pepper：
-
-   ```powershell
    wrangler secret put AUTH_PEPPER
-   ```
-
-6. 设置主管理员邮箱：
-
-   ```powershell
    wrangler secret put ADMIN_EMAIL
    ```
 
-7. 部署前做完整检查：
+5. 部署前做完整检查：
 
    ```powershell
    npm run predeploy
    ```
 
-8. 可选：做 Wrangler dry-run，确认 Worker 能通过部署打包检查：
+6. 可选：做 Wrangler dry-run，确认 Worker 能通过部署打包检查：
 
    ```powershell
    npm run deploy:dry-run
    ```
 
-9. 部署：
+7. 部署：
 
    ```powershell
    npm run deploy

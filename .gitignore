@@ -1,5 +1,6 @@
 .dev.vars
 .wrangler/
+.wrangler-config/
 node_modules/
 *.log
 __pycache__/

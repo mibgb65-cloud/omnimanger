@@ -1,0 +1,28 @@
+name = "account-secret-vault-dev"
+main = "src/index.js"
+compatibility_date = "2026-06-18"
+workers_dev = true
+keep_vars = true
+
+[observability]
+enabled = true
+
+[dev]
+ip = "127.0.0.1"
+port = 8787
+local_protocol = "http"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = true
+not_found_handling = "single-page-application"
+
+[[kv_namespaces]]
+binding = "VAULT"
+id = "00000000000000000000000000000000"
+
+[vars]
+SESSION_SECRET = "dev-session-secret-change-this-before-sharing"
+AUTH_PEPPER = "dev-auth-pepper-change-this-before-sharing"
+ADMIN_EMAIL = "admin@example.com"

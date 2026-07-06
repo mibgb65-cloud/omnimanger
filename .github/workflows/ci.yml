@@ -27,7 +27,7 @@ jobs:
           ADMIN_EMAIL=admin@example.com
           EOF
       - name: Start local Worker
-        run: npx --yes wrangler@latest dev --local --port 8787 > wrangler.log 2>&1 &
+        run: npx --yes wrangler@latest dev --config wrangler-dev.toml > wrangler.log 2>&1 &
       - name: Wait for local Worker
         run: |
           python - <<'PY'

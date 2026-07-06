@@ -1,0 +1,139 @@
+name: Deploy account-secret-vault to Cloudflare Workers
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "public/**"
+      - "scripts/**"
+      - "test/**"
+      - "wrangler*.toml"
+      - "package.json"
+      - ".github/workflows/deploy-cloudflare.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+
+    env:
+      NAME: ${{ secrets.NAME || vars.NAME || 'account-secret-vault' }}
+      CUSTOM_DOMAIN: ${{ secrets.CUSTOM_DOMAIN || vars.CUSTOM_DOMAIN }}
+      KV_NAMESPACE_ID: ${{ secrets.KV_NAMESPACE_ID || vars.KV_NAMESPACE_ID }}
+      SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+      AUTH_PEPPER: ${{ secrets.AUTH_PEPPER }}
+      ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || vars.ADMIN_EMAIL }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || vars.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
+
+    outputs:
+      worker_url: ${{ steps.deploy.outputs.worker_url }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Run checks
+        run: npm run check
+
+      - name: Disable Wrangler telemetry
+        run: npx --yes wrangler@latest telemetry disable
+
+      - name: Set up deployment config
+        run: |
+          set -euo pipefail
+
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "CLOUDFLARE_ACCOUNT_ID cannot be empty."
+            exit 1
+          fi
+
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "CLOUDFLARE_API_TOKEN cannot be empty."
+            exit 1
+          fi
+
+          if [ -z "$ADMIN_EMAIL" ]; then
+            echo "ADMIN_EMAIL cannot be empty."
+            exit 1
+          fi
+
+          if [ "${#SESSION_SECRET}" -lt 32 ]; then
+            echo "SESSION_SECRET must be at least 32 characters."
+            exit 1
+          fi
+
+          if [ "${#AUTH_PEPPER}" -lt 32 ]; then
+            echo "AUTH_PEPPER must be at least 32 characters."
+            exit 1
+          fi
+
+          CONFIG_FILE="wrangler-action.toml"
+
+          if [ -z "$CUSTOM_DOMAIN" ]; then
+            sed -i '/\[\[routes\]\]/,/^$/d' "$CONFIG_FILE"
+          fi
+
+          sed -i "s|\${NAME}|${NAME}|g" "$CONFIG_FILE"
+          sed -i "s|\${CUSTOM_DOMAIN}|${CUSTOM_DOMAIN}|g" "$CONFIG_FILE"
+          sed -i "s|\${ADMIN_EMAIL}|${ADMIN_EMAIL}|g" "$CONFIG_FILE"
+
+      - name: Set up KV namespace
+        run: |
+          set -euo pipefail
+
+          CONFIG_FILE="wrangler-action.toml"
+
+          if [ -n "$KV_NAMESPACE_ID" ]; then
+            sed -i "s|\${KV_NAMESPACE_ID}|${KV_NAMESPACE_ID}|g" "$CONFIG_FILE"
+            echo "Using KV namespace from environment."
+            exit 0
+          fi
+
+          KV_LIST=$(npx --yes wrangler@latest kv namespace list)
+
+          if echo "$KV_LIST" | jq -e ".[] | select(.title == \"$NAME\")" >/dev/null; then
+            KV_ID=$(echo "$KV_LIST" | jq -r ".[] | select(.title == \"$NAME\") | .id")
+            echo "Using existing KV namespace: $NAME"
+          else
+            npx --yes wrangler@latest kv namespace create "$NAME"
+            KV_LIST=$(npx --yes wrangler@latest kv namespace list)
+            KV_ID=$(echo "$KV_LIST" | jq -r ".[] | select(.title == \"$NAME\") | .id")
+          fi
+
+          if [ -z "$KV_ID" ] || [ "$KV_ID" = "null" ]; then
+            echo "Failed to resolve KV namespace id."
+            exit 1
+          fi
+
+          sed -i "s|\${KV_NAMESPACE_ID}|${KV_ID}|g" "$CONFIG_FILE"
+
+      - name: Deploy Worker
+        id: deploy
+        run: |
+          set -euo pipefail
+
+          npx --yes wrangler@latest deploy --config wrangler-action.toml 2>&1 | tee deploy.log
+          WORKER_URL=$(grep -o "https://.*\.workers\.dev" deploy.log | tail -n 1 || true)
+
+          if [ -n "$WORKER_URL" ]; then
+            echo "worker_url=$WORKER_URL" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set Worker secrets
+        run: |
+          set -euo pipefail
+
+          printf '%s' "$SESSION_SECRET" | npx --yes wrangler@latest secret put SESSION_SECRET --config wrangler-action.toml
+          printf '%s' "$AUTH_PEPPER" | npx --yes wrangler@latest secret put AUTH_PEPPER --config wrangler-action.toml
