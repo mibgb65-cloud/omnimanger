@@ -58,7 +58,32 @@ docs/security.md    安全模型和运维注意事项
 
 ## 部署到 Cloudflare
 
-推送 GitHub 代码本身不会自动更新 Cloudflare，除非你在 Cloudflare 控制台里单独绑定了 Git 仓库部署。这个仓库不再包含 GitHub Actions 自动部署配置。
+推荐使用 Cloudflare Workers Builds 绑定 GitHub 仓库。这个仓库不包含 GitHub Actions 自动部署配置；自动部署由 Cloudflare 控制台触发。
+
+### 自动部署
+
+1. 确认 `wrangler.toml` 里的 `[[kv_namespaces]]` 已填写生产 KV namespace id。
+
+2. 在 Cloudflare Worker 的 Settings 里配置变量和 secret：
+
+   | 名称 | 类型 | 用途 |
+   | --- | --- | --- |
+   | `SESSION_SECRET` | Secret | 至少 32 个字符，用于 session 签名 |
+   | `AUTH_PEPPER` | Secret | 至少 32 个字符，用于登录 verifier 加固 |
+   | `ADMIN_EMAIL` | Secret 或 Variable | 主管理员邮箱 |
+
+3. 在 Cloudflare 控制台进入 Workers Builds，连接 GitHub 仓库并选择 `mibgb65-cloud/omnimanger`。
+
+4. 使用以下构建配置：
+
+   ```text
+   Branch: main
+   Root directory: /
+   Build command: npm run check
+   Deploy command: npx wrangler deploy --config wrangler.toml
+   ```
+
+5. 保存配置后，后续 push 到 `main` 会由 Cloudflare 自动部署。
 
 ### 手动部署
 
